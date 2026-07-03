@@ -87,8 +87,8 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-xl flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-primary" />
             إتمام الطلب
@@ -247,7 +247,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
           <Button
             type="submit"
             disabled={loading || items.length === 0}
-            className="w-full h-12 text-base font-bold rounded-xl shadow-lg"
+            className="w-full h-12 text-base font-bold rounded-xl shadow-lg mb-[env(safe-area-inset-bottom)]"
           >
             {loading ? (
               <>

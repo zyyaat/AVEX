@@ -36,9 +36,9 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
     <Sheet open={isOpen} onOpenChange={setOpen}>
       <SheetContent
         side="left"
-        className="w-full sm:max-w-md flex flex-col p-0"
+        className="w-full sm:max-w-md flex flex-col p-0 h-[100dvh] sm:h-full max-h-[100dvh]"
       >
-        <SheetHeader className="px-5 py-4 border-b border-border bg-gradient-to-l from-primary/5 to-transparent">
+        <SheetHeader className="px-5 py-4 border-b border-border bg-gradient-to-l from-primary/5 to-transparent flex-shrink-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-xl">
               <ShoppingBag className="w-5 h-5 text-primary" />
@@ -98,7 +98,7 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
               </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="p-4 space-y-3">
                 <AnimatePresence>
                   {items.map((item) => (
@@ -165,7 +165,7 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
               </div>
             </ScrollArea>
 
-            <SheetFooter className="border-t border-border p-4 space-y-3">
+            <SheetFooter className="border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-3 flex-shrink-0 bg-card">
               {/* Summary */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">

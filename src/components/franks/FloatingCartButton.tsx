@@ -18,6 +18,9 @@ export function FloatingCartButton() {
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 260, damping: 20 }}
           className="fixed bottom-4 left-4 right-4 sm:hidden z-40"
+          style={{
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
         >
           <button
             onClick={() => setOpen(true)}

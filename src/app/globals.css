@@ -142,6 +142,21 @@
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;
+  /* Ensure proper viewport behavior on mobile */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Safe area support for mobile devices */
+body {
+  /* Use dynamic viewport height to handle mobile browser UI */
+  min-height: 100dvh;
+}
+
+/* Ensure proper viewport meta handling */
+@supports (height: 100dvh) {
+  .h-dvh {
+    height: 100dvh;
+  }
 }
 
 /* Animated gradient for hero */
