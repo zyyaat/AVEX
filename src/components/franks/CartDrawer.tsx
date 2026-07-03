@@ -36,7 +36,7 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
     <Sheet open={isOpen} onOpenChange={setOpen}>
       <SheetContent
         side="left"
-        className="w-full sm:max-w-md flex flex-col p-0 h-[100dvh] sm:h-full max-h-[100dvh]"
+        className="w-full sm:max-w-md flex flex-col p-0 h-dvh max-h-dvh gap-0"
       >
         <SheetHeader className="px-5 py-4 border-b border-border bg-gradient-to-l from-primary/5 to-transparent flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -165,7 +165,7 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
               </div>
             </ScrollArea>
 
-            <SheetFooter className="border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-3 flex-shrink-0 bg-card">
+            <SheetFooter className="border-t border-border p-4 space-y-3 flex-shrink-0 bg-card" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px) + 24px)' }}>
               {/* Summary */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">

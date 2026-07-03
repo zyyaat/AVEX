@@ -87,18 +87,19 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="text-xl flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-primary" />
-            إتمام الطلب
-          </DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-md max-h-[92dvh] overflow-hidden rounded-2xl p-0 flex flex-col gap-0">
+        <div className="overflow-y-auto p-4 sm:p-6 flex-1">
+          <DialogHeader className="flex-shrink-0 mb-4">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-primary" />
+              إتمام الطلب
+            </DialogTitle>
+            <DialogDescription>
             أدخل معلومات التوصيل لإكمال طلبك
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form id="checkout-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Customer info */}
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -243,11 +244,16 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
               <span className="font-extrabold text-lg text-primary">{total.toFixed(2)} د.أ</span>
             </div>
           </div>
+        </form>
+        </div>
 
+        {/* Fixed footer with submit button - always visible */}
+        <div className="border-t border-border p-4 bg-card flex-shrink-0" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
           <Button
             type="submit"
+            form="checkout-form"
             disabled={loading || items.length === 0}
-            className="w-full h-12 text-base font-bold rounded-xl shadow-lg mb-[env(safe-area-inset-bottom)]"
+            className="w-full h-12 text-base font-bold rounded-xl shadow-lg"
           >
             {loading ? (
               <>
@@ -258,7 +264,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
               `تأكيد الطلب • ${total.toFixed(2)} د.أ`
             )}
           </Button>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
