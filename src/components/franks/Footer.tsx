@@ -92,9 +92,20 @@ export function Footer() {
 
         <div className="border-t border-background/10 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-background/60">
           <p>© 2026 Frank&apos;s Restaurant. جميع الحقوق محفوظة.</p>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <a href="#" className="hover:text-primary transition-colors">سياسة الخصوصية</a>
             <a href="#" className="hover:text-primary transition-colors">الشروط والأحكام</a>
+            <a
+              href="?admin=1"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background/10 hover:bg-primary hover:text-primary-foreground transition-colors font-medium"
+              aria-label="لوحة التحكم"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              لوحة التحكم
+            </a>
           </div>
         </div>
       </div>

@@ -1,0 +1,52 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await req.json()
+    const { name, nameAr, icon, order } = body
+
+    const category = await db.category.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(nameAr !== undefined && { nameAr }),
+        ...(icon !== undefined && { icon }),
+        ...(order !== undefined && { order }),
+      },
+    })
+
+    return NextResponse.json({ category })
+  } catch (error) {
+    console.error('Failed to update category:', error)
+    return NextResponse.json({ error: 'Failed to update category' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    // Check if category has items
+    const itemsCount = await db.menuItem.count({ where: { categoryId: id } })
+    if (itemsCount > 0) {
+      return NextResponse.json(
+        { error: `Cannot delete category with ${itemsCount} items. Move or delete items first.` },
+        { status: 400 }
+      )
+    }
+
+    await db.category.delete({ where: { id } })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to delete category:', error)
+    return NextResponse.json({ error: 'Failed to delete category' }, { status: 500 })
+  }
+}

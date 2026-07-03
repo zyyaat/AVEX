@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Header } from '@/components/franks/Header'
 import { Hero } from '@/components/franks/Hero'
 import { MenuSection } from '@/components/franks/MenuSection'
@@ -11,14 +12,21 @@ import { CartDrawer } from '@/components/franks/CartDrawer'
 import { CheckoutDialog } from '@/components/franks/CheckoutDialog'
 import { OrderSuccessDialog } from '@/components/franks/OrderSuccessDialog'
 import { FloatingCartButton } from '@/components/franks/FloatingCartButton'
+import { AdminDashboard } from '@/components/admin/AdminDashboard'
 
 export default function Home() {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [successOpen, setSuccessOpen] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const adminMode = searchParams.get('admin') === '1'
+
+  const handleExitAdmin = () => {
+    router.push('/')
+  }
 
   const handleCheckout = () => {
-    // Close cart drawer (handled internally), open checkout
     setCheckoutOpen(true)
   }
 
@@ -27,6 +35,12 @@ export default function Home() {
     setSuccessOpen(true)
   }
 
+  // Admin mode: render admin dashboard only
+  if (adminMode) {
+    return <AdminDashboard onExit={handleExitAdmin} />
+  }
+
+  // Customer mode: render the store
   return (
     <div className="min-h-dvh flex flex-col bg-background">
       <Header />
