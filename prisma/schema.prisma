@@ -1,0 +1,66 @@
+// Prisma schema for Frank's Restaurant Delivery App
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  nameAr    String
+  icon      String
+  order     Int      @default(0)
+  items     MenuItem[]
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String
+  description String
+  descriptionAr String
+  price       Float
+  image       String
+  isPopular   Boolean  @default(false)
+  isAvailable Boolean  @default(true)
+  rating      Float    @default(4.5)
+  prepTime    Int      @default(15)
+  calories    Int      @default(0)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique
+  customerName String
+  phone       String
+  address     String
+  city        String
+  notes       String?
+  subtotal    Float
+  deliveryFee Float
+  total       Float
+  paymentMethod String @default("cash")
+  status      String   @default("pending") // pending, confirmed, preparing, delivering, delivered
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id])
+  name      String
+  price     Float
+  quantity  Int
+}
