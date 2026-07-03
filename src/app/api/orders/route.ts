@@ -27,12 +27,20 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { customerName, phone, address, city, notes, items, paymentMethod } = body
+    const { customerName, phone, items, paymentMethod, locationLat, locationLng, locationAddress } = body
 
     // Validate required fields
-    if (!customerName || !phone || !address || !city || !items?.length) {
+    if (!customerName || !phone || !items?.length) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Validate location
+    if (locationLat == null || locationLng == null) {
+      return NextResponse.json(
+        { error: 'Location is required' },
         { status: 400 }
       )
     }
@@ -51,14 +59,18 @@ export async function POST(req: NextRequest) {
     const deliveryFee = subtotal >= 30 ? 0 : 3.99
     const total = subtotal + deliveryFee
 
+    // Build Google Maps URL
+    const locationUrl = `https://www.google.com/maps?q=${locationLat},${locationLng}`
+
     const order = await db.order.create({
       data: {
         orderNumber: generateOrderNumber(),
         customerName,
         phone,
-        address,
-        city,
-        notes: notes || null,
+        locationLat: parseFloat(locationLat),
+        locationLng: parseFloat(locationLng),
+        locationUrl,
+        locationAddress: locationAddress || null,
         subtotal,
         deliveryFee,
         total,

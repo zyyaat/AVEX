@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Copy, Package, ChefHat, Bike, Home, X, Clock } from 'lucide-react'
+import { CheckCircle2, Copy, Package, ChefHat, Bike, Home, X, Clock, MapPin, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -36,6 +36,7 @@ const STATUS_TIMELINE: Record<string, number> = {
 
 export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuccessDialogProps) {
   const [currentStep, setCurrentStep] = useState(0)
+  const [locationUrl, setLocationUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open || !orderNumber) return
@@ -43,10 +44,15 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
     let step = 0
     let interval: ReturnType<typeof setInterval> | null = null
 
-    // First fetch the order, then start the simulated status progression
+    // First fetch the order to get the location URL
     fetch('/api/orders')
       .then((r) => r.json())
-      .then(() => {
+      .then((data) => {
+        // Find the order to get its location URL
+        const found = data.orders?.find((o: { orderNumber: string; locationUrl?: string }) => o.orderNumber === orderNumber)
+        if (found?.locationUrl) {
+          setLocationUrl(found.locationUrl)
+        }
         // Start interval only after fetch resolves
         interval = setInterval(() => {
           step += 1
@@ -132,6 +138,25 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
             <span className="text-muted-foreground">الوقت المتوقع للتوصيل:</span>
             <span className="font-bold text-primary">30 - 45 دقيقة</span>
           </div>
+
+          {/* Location link */}
+          {locationUrl && (
+            <a
+              href={locationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-3 hover:bg-green-100 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-bold text-green-800">موقع التوصيل</p>
+                  <p className="text-xs text-green-600">اضغط لعرض الموقع على خرائط جوجل</p>
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-green-600 group-hover:translate-x-[-2px] transition-transform" />
+            </a>
+          )}
 
           {/* Tracking steps */}
           <div className="space-y-1">

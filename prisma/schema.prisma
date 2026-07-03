@@ -41,9 +41,11 @@ model Order {
   orderNumber String   @unique
   customerName String
   phone       String
-  address     String
-  city        String
-  notes       String?
+  // Location fields (replaces address/city/notes)
+  locationLat  Float?
+  locationLng  Float?
+  locationUrl  String?  // Google Maps URL
+  locationAddress String? // Reverse geocoded address (optional)
   subtotal    Float
   deliveryFee Float
   total       Float
