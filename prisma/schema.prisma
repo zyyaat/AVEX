@@ -1,4 +1,4 @@
-// Prisma schema for Frank's Restaurant Delivery App
+// Prisma schema for AVEX - Global Delivery App
 
 generator client {
   provider = "prisma-client-js"
@@ -9,11 +9,50 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  email     String?
+  passwordHash String
+  loyaltyPoints Int @default(0)
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  addresses Address[]
+  favorites Favorite[]
+  cards     SavedCard[]
+  orders    Order[]
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String
+  lat         Float?
+  lng         Float?
+  locationUrl String?
+  addressText String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  @@unique([userId, menuItemId])
+}
+
 model Category {
   id        String   @id @default(cuid())
   name      String
   nameAr    String
-  icon      String
+  icon      String   @default("🍽️")
+  imageUrl  String?
   order     Int      @default(0)
   items     MenuItem[]
 }
@@ -25,32 +64,38 @@ model MenuItem {
   description String
   descriptionAr String
   price       Float
-  image       String
+  image       String   @default("🍽️")
+  imageUrl    String?
   isPopular   Boolean  @default(false)
   isAvailable Boolean  @default(true)
   rating      Float    @default(4.5)
+  ratingCount Int      @default(0)
   prepTime    Int      @default(15)
   calories    Int      @default(0)
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
+  favorites   Favorite[]
 }
 
 model Order {
   id          String   @id @default(cuid())
   orderNumber String   @unique
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerName String
   phone       String
-  // Location fields (replaces address/city/notes)
   locationLat  Float?
   locationLng  Float?
-  locationUrl  String?  // Google Maps URL
-  locationAddress String? // Reverse geocoded address (optional)
+  locationUrl  String?
+  locationAddress String?
   subtotal    Float
   deliveryFee Float
+  discount    Float    @default(0)
+  couponCode  String?
   total       Float
   paymentMethod String @default("cash")
-  status      String   @default("pending") // pending, confirmed, preparing, delivering, delivered
+  status      String   @default("new")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   items       OrderItem[]
@@ -60,9 +105,46 @@ model OrderItem {
   id        String   @id @default(cuid())
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItemId String
-  menuItem  MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId String?
+  menuItem  MenuItem? @relation(fields: [menuItemId], references: [id])
   name      String
   price     Float
   quantity  Int
+}
+
+model Coupon {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String?
+  descriptionAr String?
+  type        String   @default("percentage")
+  value       Float
+  minOrder    Float    @default(0)
+  maxDiscount Float?
+  isActive    Boolean  @default(true)
+  usageLimit  Int?
+  usedCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model SavedCard {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymobToken   String
+  brand         String
+  last4         String
+  expMonth      Int
+  expYear       Int
+  cardholderName String?
+  isDefault     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
 }
