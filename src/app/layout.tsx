@@ -11,12 +11,12 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "Frank's Restaurant | مطعم فرانك - توصيل سريع",
-  description: "اطلب طعامك المفضل من مطعم Frank's - برغر، بيتزا، مقبلات، وحلويات مع توصيل سريع لباب منزلك",
-  keywords: ["Frank's", "مطعم", "دليفري", "توصيل", "برغر", "بيتزا", "restaurant", "delivery"],
-  authors: [{ name: "Frank's Restaurant" }],
+  title: "AVEX | أفكس - توصيل سريع لكل ما تحتاجه",
+  description: "اطلب طعامك المفضل وأكثر مع AVEX - توصيل سريع، دفع آمن، وتجربة عالمية",
+  keywords: ["AVEX", "أفكس", "توصيل", "دليفري", "طعام", "delivery", "food"],
+  authors: [{ name: "AVEX" }],
   icons: {
-    icon: "🍔",
+    icon: "🚀",
   },
 };
 
