@@ -108,8 +108,11 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
       return
     }
 
-    if (!/^[0-9+\-\s]{8,15}$/.test(phone)) {
-      toast.error('يرجى إدخال رقم هاتف صحيح')
+    // التحقق من رقم الهاتف المصري: 11 رقم بالضبط
+    // يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015
+    const cleanPhone = phone.replace(/[\s\-+]/g, '')
+    if (!/^01[0125][0-9]{8}$/.test(cleanPhone)) {
+      toast.error('رقم الهاتف يجب أن يكون 11 رقماً مصرياً ويبدأ بـ 010 أو 011 أو 012 أو 015')
       return
     }
 
@@ -203,11 +206,30 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                   id="phone"
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="07XXXXXXXX"
+                  onChange={(e) => {
+                    let val = e.target.value
+                    val = val.replace(/[^\d+]/g, '')
+                    if (val.startsWith('+20')) {
+                      val = '0' + val.slice(3)
+                    } else if (val.startsWith('20') && val.length === 13 && val[2] === '1') {
+                      val = '0' + val.slice(2)
+                    } else if (val.startsWith('+')) {
+                      val = val.replace(/\+/g, '')
+                    }
+                    val = val.replace(/[^0-9]/g, '').slice(0, 11)
+                    setPhone(val)
+                  }}
+                  placeholder="01012345678"
                   required
-                  className="rounded-lg"
+                  className={`rounded-lg ${
+                    phone && !/^01[0125][0-9]{8}$/.test(phone)
+                      ? 'border-destructive'
+                      : phone.length === 11 && /^01[0125][0-9]{8}$/.test(phone)
+                      ? 'border-green-500'
+                      : ''
+                  }`}
                   dir="ltr"
+                  inputMode="tel"
                 />
               </div>
             </div>

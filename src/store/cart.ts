@@ -50,9 +50,10 @@ export const useCart = create<CartState>()(
       },
 
       updateQuantity: (id, quantity) => {
-        if (quantity <= 0) {
-          get().removeItem(id)
-          return
+        // منع الحذف بالخطأ عبر زر الناقص - أقل كمية هي 1
+        // الحذف يتم فقط عبر زر الحذف (removeItem)
+        if (quantity < 1) {
+          return // لا تفعل شيئاً، الكمية تبقى 1
         }
         set({
           items: get().items.map((i) =>
@@ -79,7 +80,9 @@ export const useCart = create<CartState>()(
       getTotal: () => get().getSubtotal() + get().getDeliveryFee(),
     }),
     {
-      name: 'franks-cart',
+      name: 'avex-cart',
+      // Only persist items, not isOpen (cart should be closed on page load)
+      partialize: (state) => ({ items: state.items }),
     }
   )
 )
