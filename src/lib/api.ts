@@ -56,6 +56,8 @@ export const authAPI = {
 export const menuAPI = {
   getCategories: () => apiFetch<{ categories: any[] }>('/api/menu'),
   getSettings: () => apiFetch<{ settings: Record<string, string> }>('/api/settings'),
+  getRestaurants: () => apiFetch<{ restaurants: any[] }>('/api/restaurants'),
+  getRestaurant: (id: string) => apiFetch<any>(`/api/restaurants/${id}`),
 }
 
 export const ordersAPI = {

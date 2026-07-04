@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Header } from '@/components/franks/Header'
 import { Hero } from '@/components/franks/Hero'
-import { MenuSection } from '@/components/franks/MenuSection'
+import { HomeRestaurants } from '@/components/franks/HomeRestaurants'
+import { RestaurantPage } from '@/components/franks/RestaurantPage'
 import { OffersSection } from '@/components/franks/OffersSection'
 import { AboutSection } from '@/components/franks/AboutSection'
 import { Footer } from '@/components/franks/Footer'
@@ -35,6 +36,7 @@ export default function Home() {
   const myOrdersMode = searchParams.get('myorders') === '1'
   const accountMode = searchParams.get('account') === '1'
   const searchMode = searchParams.get('search') === '1'
+  const restaurantId = searchParams.get('restaurant')
   const authParam = searchParams.get('auth')
 
   useEffect(() => {
@@ -57,18 +59,19 @@ export default function Home() {
 
   // Special modes
   if (adminMode) return <AdminDashboard onExit={goHome} />
-  if (trackOrderNumber !== null) return <OrderTracking initialOrderNumber={trackOrderNumber || undefined} onBack={goHome} />
+  if (trackOrderNumber !== null) return <><OrderTracking initialOrderNumber={trackOrderNumber || undefined} onBack={goHome} /><BottomTabBar /></>
   if (myOrdersMode) return <><MyOrders onBack={goHome} onLoginRequired={handleLoginRequired} /><AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} /><BottomTabBar /></>
   if (accountMode) return <><AccountPage onBack={goHome} onLoginRequired={handleLoginRequired} /><AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} /><BottomTabBar /></>
   if (searchMode) return <><SearchPage onBack={goHome} /><BottomTabBar /></>
+  if (restaurantId) return <><RestaurantPage restaurantId={restaurantId} onBack={goHome} /><BottomTabBar /></>
 
-  // Main store
+  // Main store - now shows restaurants
   return (
     <div className="min-h-dvh flex flex-col bg-white pb-14 sm:pb-0">
       <Header />
       <main className="flex-1">
         <Hero />
-        <MenuSection />
+        <HomeRestaurants />
         <OffersSection />
         <AboutSection />
       </main>

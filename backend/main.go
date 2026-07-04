@@ -123,9 +123,10 @@ func InitDB() error {
         CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20) UNIQUE, email VARCHAR(255), password_hash VARCHAR(255), loyalty_points INTEGER DEFAULT 0, is_admin BOOLEAN DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS addresses (id TEXT PRIMARY KEY, user_id TEXT, label VARCHAR(100), lat REAL, lng REAL, location_url TEXT, address_text TEXT, is_default BOOLEAN DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS favorites (id TEXT PRIMARY KEY, user_id TEXT, menu_item_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, menu_item_id));
+        CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, name VARCHAR(255), name_ar VARCHAR(255), description TEXT, description_ar TEXT, image_url TEXT, cover_url TEXT, rating REAL DEFAULT 4.5, rating_count INTEGER DEFAULT 0, delivery_time_min INTEGER DEFAULT 20, delivery_time_max INTEGER DEFAULT 45, delivery_fee REAL DEFAULT 3.99, min_order REAL DEFAULT 0, is_active BOOLEAN DEFAULT 1, is_pro BOOLEAN DEFAULT 0, cuisines TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, name VARCHAR(255), name_ar VARCHAR(255), icon VARCHAR(50) DEFAULT '🍽️', image_url TEXT, sort_order INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS menu_items (id TEXT PRIMARY KEY, name VARCHAR(255), name_ar VARCHAR(255), description TEXT, description_ar TEXT, price REAL, image VARCHAR(50) DEFAULT '🍽️', image_url TEXT, is_popular BOOLEAN DEFAULT 0, is_available BOOLEAN DEFAULT 1, rating REAL DEFAULT 4.5, rating_count INTEGER DEFAULT 0, prep_time INTEGER DEFAULT 15, calories INTEGER DEFAULT 0, category_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, order_number VARCHAR(50) UNIQUE, user_id TEXT, customer_name VARCHAR(255), phone VARCHAR(20), location_lat REAL, location_lng REAL, location_url TEXT, location_address TEXT, subtotal REAL, delivery_fee REAL, discount REAL DEFAULT 0, coupon_code VARCHAR(50), total REAL, payment_method VARCHAR(20) DEFAULT 'cash', status VARCHAR(30) DEFAULT 'new', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS menu_items (id TEXT PRIMARY KEY, name VARCHAR(255), name_ar VARCHAR(255), description TEXT, description_ar TEXT, price REAL, image VARCHAR(50) DEFAULT '🍽️', image_url TEXT, is_popular BOOLEAN DEFAULT 0, is_available BOOLEAN DEFAULT 1, rating REAL DEFAULT 4.5, rating_count INTEGER DEFAULT 0, prep_time INTEGER DEFAULT 15, calories INTEGER DEFAULT 0, category_id TEXT, restaurant_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, order_number VARCHAR(50) UNIQUE, user_id TEXT, restaurant_id TEXT, customer_name VARCHAR(255), phone VARCHAR(20), location_lat REAL, location_lng REAL, location_url TEXT, location_address TEXT, subtotal REAL, delivery_fee REAL, discount REAL DEFAULT 0, tax REAL DEFAULT 0, coupon_code VARCHAR(50), total REAL, payment_method VARCHAR(20) DEFAULT 'cash', status VARCHAR(30) DEFAULT 'new', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS order_items (id TEXT PRIMARY KEY, order_id TEXT, menu_item_id TEXT, name VARCHAR(255), price REAL, quantity INTEGER);
         CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, code VARCHAR(50) UNIQUE, description TEXT, description_ar TEXT, type VARCHAR(20) DEFAULT 'percentage', value REAL, min_order REAL DEFAULT 0, max_discount REAL, is_active BOOLEAN DEFAULT 1, usage_limit INTEGER, used_count INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS settings (key VARCHAR(100) PRIMARY KEY, value TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
@@ -145,7 +146,7 @@ func InitDB() error {
 // ===== SEED =====
 func Seed() {
         var count int
-        DB.QueryRow("SELECT COUNT(*) FROM categories").Scan(&count)
+        DB.QueryRow("SELECT COUNT(*) FROM restaurants").Scan(&count)
         if count > 0 { return }
         log.Println("🌱 Seeding data...")
 
@@ -157,38 +158,58 @@ func Seed() {
         cats := []struct{ id, name, nameAr, icon string }{
                 {"cat-Burgers", "Burgers", "برغر", "🍔"}, {"cat-Pizza", "Pizza", "بيتزا", "🍕"},
                 {"cat-Sides", "Sides", "مقبلات", "🍟"}, {"cat-Drinks", "Drinks", "مشروبات", "🥤"},
-                {"cat-Desserts", "Desserts", "حلويات", "🍰"},
+                {"cat-Desserts", "Desserts", "حلويات", "🍰"}, {"cat-Shawarma", "Shawarma", "شاورما", "🌯"},
         }
-        for _, c := range cats {
-                DB.Exec("INSERT INTO categories (id, name, name_ar, icon, sort_order) VALUES (?, ?, ?, ?, ?)", c.id, c.name, c.nameAr, c.icon, len(cats))
+        for i, c := range cats {
+                DB.Exec("INSERT INTO categories (id, name, name_ar, icon, sort_order) VALUES (?, ?, ?, ?, ?)", c.id, c.name, c.nameAr, c.icon, i)
         }
 
-        // Menu items
-        items := []struct{ name, nameAr, desc, descAr string; price float64; img string; popular bool; rating float64; rc, pt, cal int; cat string }{
-                {"Classic Burger", "برغر كلاسيكي", "Juicy beef patty", "قطعة لحم بقري طازجة", 12.99, "https://sfile.chatglm.cn/images-ppt/1d832f630b65.jpg", true, 4.8, 324, 15, 650, "cat-Burgers"},
-                {"Double Cheese Burger", "دبل تشيز برغر", "Two beef patties", "قطعتان من اللحم البقري", 16.99, "https://sfile.chatglm.cn/images-ppt/2f96fe27d3e9.jpg", true, 4.9, 412, 18, 890, "cat-Burgers"},
-                {"Spicy Chicken Burger", "برغر الدجاج الحار", "Crispy chicken", "فيليه دجاج مقرمش", 13.49, "https://sfile.chatglm.cn/images-ppt/399af1a4b512.jpg", false, 4.7, 198, 16, 720, "cat-Burgers"},
-                {"Mushroom Swiss Burger", "برغر المشروم", "Beef with mushrooms", "لحم بقري مع مشروم", 14.99, "https://sfile.chatglm.cn/images-ppt/0ce2d82a15ec.jpg", false, 4.6, 156, 17, 700, "cat-Burgers"},
-                {"Margherita", "بيتزا مارغريتا", "Fresh mozzarella", "موزاريلا طازجة", 15.99, "https://sfile.chatglm.cn/images-ppt/893e366ad435.jpg", true, 4.7, 287, 20, 850, "cat-Pizza"},
-                {"Pepperoni", "بيتزا بيبروني", "Loaded pepperoni", "شرائح بيبروني", 17.99, "https://sfile.chatglm.cn/images-ppt/0efa7148f85a.jpg", true, 4.8, 356, 22, 980, "cat-Pizza"},
-                {"BBQ Chicken Pizza", "بيتزا دجاج باربيكيو", "Grilled chicken", "دجاج مشوي", 18.99, "https://sfile.chatglm.cn/images-ppt/b1128c2d7ab8.jpeg", false, 4.6, 178, 22, 920, "cat-Pizza"},
-                {"Veggie Supreme", "بيتزا خضار", "Bell peppers", "فلفل ملون", 16.49, "https://sfile.chatglm.cn/images-ppt/f28d88f6a90b.png", false, 4.5, 134, 20, 780, "cat-Pizza"},
-                {"French Fries", "بطاطس مقلية", "Crispy golden fries", "بطاطس مقرمشة", 4.99, "https://sfile.chatglm.cn/images-ppt/ea35bc731d9e.jpg", true, 4.7, 445, 8, 365, "cat-Sides"},
-                {"Onion Rings", "حلقات البصل", "Crispy onion rings", "حلقات بصل", 5.49, "https://sfile.chatglm.cn/images-ppt/9aaff81824b7.jpg", false, 4.5, 167, 10, 410, "cat-Sides"},
-                {"Chicken Wings", "أجنحة دجاج", "Spicy buffalo wings", "أجنحة بافالو", 9.99, "https://sfile.chatglm.cn/images-ppt/ccce3e544078.jpg", true, 4.8, 289, 15, 580, "cat-Sides"},
-                {"Mozzarella Sticks", "أصابع موزاريلا", "Fried mozzarella", "موزاريلا مقلية", 6.49, "https://sfile.chatglm.cn/images-ppt/51e2a90a8a30.jpg", false, 4.6, 198, 10, 450, "cat-Sides"},
-                {"Coca-Cola", "كوكا كولا", "330ml can", "علبة 330مل", 2.49, "https://sfile.chatglm.cn/images-ppt/1310f5bc0748.jpg", false, 4.5, 312, 2, 140, "cat-Drinks"},
-                {"Orange Juice", "عصير برتقال", "Fresh squeezed", "عصير طازج", 4.49, "https://sfile.chatglm.cn/images-ppt/f5d00fc46ec1.jpg", true, 4.7, 234, 5, 165, "cat-Drinks"},
-                {"Iced Coffee", "قهوة مثلجة", "Cold brew", "كولد برو", 5.49, "https://sfile.chatglm.cn/images-ppt/ec0d8482a2be.jpg", true, 4.8, 278, 5, 220, "cat-Drinks"},
-                {"Mineral Water", "مياه معدنية", "500ml", "زجاجة 500مل", 1.49, "https://sfile.chatglm.cn/images-ppt/311a8c72f800.jpg", false, 4.4, 145, 1, 0, "cat-Drinks"},
-                {"Chocolate Brownie", "براوني الشوكولاتة", "Warm brownie", "براوني دافئ", 6.99, "https://sfile.chatglm.cn/images-ppt/fa9851b1681e.jpg", true, 4.9, 367, 8, 520, "cat-Desserts"},
-                {"Cheesecake", "تشيز كيك", "Creamy cheesecake", "تشيز كيك", 7.49, "https://sfile.chatglm.cn/images-ppt/0f3319609656.jpg", false, 4.8, 245, 5, 480, "cat-Desserts"},
-                {"Milkshake", "ميلك شيك", "Vanilla milkshake", "ميلك شيك", 5.99, "https://sfile.chatglm.cn/images-ppt/ab6e313a4e50.jpg", false, 4.7, 189, 5, 380, "cat-Desserts"},
-                {"Apple Pie", "فطيرة تفاح", "Warm apple pie", "فطيرة تفاح", 5.49, "https://sfile.chatglm.cn/images-ppt/04230212dbc8.jpg", false, 4.6, 156, 6, 410, "cat-Desserts"},
+        // Restaurants
+        restaurants := []struct{ id, name, nameAr, descAr, cuisines string; rating float64; rc int; dtMin, dtMax int; dFee, minOrd float64; isPro bool }{
+                {"rest-1", "Burger House", "برجر هاوس", "أفضل برغر في المدينة", "برغر, ساندويتش", 4.8, 324, 20, 35, 3.99, 0, true},
+                {"rest-2", "Pizza Palace", "بيتزا بالاس", "بيتزا إيطالية أصيلة", "بيتزا, إيطالي", 4.7, 287, 25, 45, 4.99, 0, true},
+                {"rest-3", "Shawarma King", "ملك الشاورما", "شاورما طازجة يومياً", "شاورما, عربي", 4.6, 198, 15, 30, 2.99, 0, false},
+                {"rest-4", "Sweet Dreams", "أحلام حلوة", "حلويات ومعجنات طازجة", "حلويات", 4.9, 156, 15, 25, 3.49, 0, false},
+                {"rest-5", "Fresh & Cold", "فريش آند كولد", "مشروبات طازجة وعصائر", "مشروبات, عصائر", 4.5, 134, 10, 20, 1.99, 0, false},
+        }
+        for _, r := range restaurants {
+                DB.Exec("INSERT INTO restaurants (id, name, name_ar, description_ar, cuisines, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_active, is_pro) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+                        r.id, r.name, r.nameAr, r.descAr, r.cuisines, r.rating, r.rc, r.dtMin, r.dtMax, r.dFee, r.minOrd, r.isPro)
+        }
+
+        // Menu items - linked to restaurants
+        items := []struct{ name, nameAr, desc, descAr string; price float64; img string; popular bool; rating float64; rc, pt, cal int; cat, rest string }{
+                // Burger House
+                {"Classic Burger", "برغر كلاسيكي", "Juicy beef patty", "قطعة لحم بقري طازجة", 12.99, "https://sfile.chatglm.cn/images-ppt/1d832f630b65.jpg", true, 4.8, 324, 15, 650, "cat-Burgers", "rest-1"},
+                {"Double Cheese Burger", "دبل تشيز برغر", "Two beef patties", "قطعتان من اللحم البقري", 16.99, "https://sfile.chatglm.cn/images-ppt/2f96fe27d3e9.jpg", true, 4.9, 412, 18, 890, "cat-Burgers", "rest-1"},
+                {"Spicy Chicken Burger", "برغر الدجاج الحار", "Crispy chicken", "فيليه دجاج مقرمش", 13.49, "https://sfile.chatglm.cn/images-ppt/399af1a4b512.jpg", false, 4.7, 198, 16, 720, "cat-Burgers", "rest-1"},
+                {"Mushroom Swiss Burger", "برغر المشروم", "Beef with mushrooms", "لحم بقري مع مشروم", 14.99, "https://sfile.chatglm.cn/images-ppt/0ce2d82a15ec.jpg", false, 4.6, 156, 17, 700, "cat-Burgers", "rest-1"},
+                {"French Fries", "بطاطس مقلية", "Crispy golden fries", "بطاطس مقرمشة", 4.99, "https://sfile.chatglm.cn/images-ppt/ea35bc731d9e.jpg", true, 4.7, 445, 8, 365, "cat-Sides", "rest-1"},
+                {"Onion Rings", "حلقات البصل", "Crispy onion rings", "حلقات بصل", 5.49, "https://sfile.chatglm.cn/images-ppt/9aaff81824b7.jpg", false, 4.5, 167, 10, 410, "cat-Sides", "rest-1"},
+                // Pizza Palace
+                {"Margherita", "بيتزا مارغريتا", "Fresh mozzarella", "موزاريلا طازجة", 15.99, "https://sfile.chatglm.cn/images-ppt/893e366ad435.jpg", true, 4.7, 287, 20, 850, "cat-Pizza", "rest-2"},
+                {"Pepperoni", "بيتزا بيبروني", "Loaded pepperoni", "شرائح بيبروني", 17.99, "https://sfile.chatglm.cn/images-ppt/0efa7148f85a.jpg", true, 4.8, 356, 22, 980, "cat-Pizza", "rest-2"},
+                {"BBQ Chicken Pizza", "بيتزا دجاج باربيكيو", "Grilled chicken", "دجاج مشوي", 18.99, "https://sfile.chatglm.cn/images-ppt/b1128c2d7ab8.jpeg", false, 4.6, 178, 22, 920, "cat-Pizza", "rest-2"},
+                {"Veggie Supreme", "بيتزا خضار", "Bell peppers", "فلفل ملون", 16.49, "https://sfile.chatglm.cn/images-ppt/f28d88f6a90b.png", false, 4.5, 134, 20, 780, "cat-Pizza", "rest-2"},
+                // Shawarma King
+                {"Chicken Shawarma", "شاورما دجاج", "Grilled chicken wrap", "شاورما دجاج مشوي", 8.99, "https://sfile.chatglm.cn/images-ppt/399af1a4b512.jpg", true, 4.7, 198, 10, 450, "cat-Shawarma", "rest-3"},
+                {"Beef Shawarma", "شاورما لحم", "Tender beef wrap", "شاورما لحم طري", 9.99, "https://sfile.chatglm.cn/images-ppt/1d832f630b65.jpg", true, 4.8, 167, 12, 520, "cat-Shawarma", "rest-3"},
+                {"Chicken Wings", "أجنحة دجاج", "Spicy buffalo wings", "أجنحة بافالو", 9.99, "https://sfile.chatglm.cn/images-ppt/ccce3e544078.jpg", false, 4.6, 289, 15, 580, "cat-Sides", "rest-3"},
+                {"Mozzarella Sticks", "أصابع موزاريلا", "Fried mozzarella", "موزاريلا مقلية", 6.49, "https://sfile.chatglm.cn/images-ppt/51e2a90a8a30.jpg", false, 4.5, 156, 10, 450, "cat-Sides", "rest-3"},
+                // Sweet Dreams
+                {"Chocolate Brownie", "براوني الشوكولاتة", "Warm brownie", "براوني دافئ", 6.99, "https://sfile.chatglm.cn/images-ppt/fa9851b1681e.jpg", true, 4.9, 367, 8, 520, "cat-Desserts", "rest-4"},
+                {"Cheesecake", "تشيز كيك", "Creamy cheesecake", "تشيز كيك", 7.49, "https://sfile.chatglm.cn/images-ppt/0f3319609656.jpg", false, 4.8, 245, 5, 480, "cat-Desserts", "rest-4"},
+                {"Milkshake", "ميلك شيك", "Vanilla milkshake", "ميلك شيك", 5.99, "https://sfile.chatglm.cn/images-ppt/ab6e313a4e50.jpg", false, 4.7, 189, 5, 380, "cat-Desserts", "rest-4"},
+                {"Apple Pie", "فطيرة تفاح", "Warm apple pie", "فطيرة تفاح", 5.49, "https://sfile.chatglm.cn/images-ppt/04230212dbc8.jpg", false, 4.6, 156, 6, 410, "cat-Desserts", "rest-4"},
+                // Fresh & Cold
+                {"Coca-Cola", "كوكا كولا", "330ml can", "علبة 330مل", 2.49, "https://sfile.chatglm.cn/images-ppt/1310f5bc0748.jpg", false, 4.5, 312, 2, 140, "cat-Drinks", "rest-5"},
+                {"Orange Juice", "عصير برتقال", "Fresh squeezed", "عصير طازج", 4.49, "https://sfile.chatglm.cn/images-ppt/f5d00fc46ec1.jpg", true, 4.7, 234, 5, 165, "cat-Drinks", "rest-5"},
+                {"Iced Coffee", "قهوة مثلجة", "Cold brew", "كولد برو", 5.49, "https://sfile.chatglm.cn/images-ppt/ec0d8482a2be.jpg", true, 4.8, 278, 5, 220, "cat-Drinks", "rest-5"},
+                {"Mineral Water", "مياه معدنية", "500ml", "زجاجة 500مل", 1.49, "https://sfile.chatglm.cn/images-ppt/311a8c72f800.jpg", false, 4.4, 145, 1, 0, "cat-Drinks", "rest-5"},
         }
         for i, it := range items {
                 id := fmt.Sprintf("item-%d", i+1)
-                DB.Exec("INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id) VALUES (?, ?, ?, ?, ?, ?, '🍽️', ?, ?, 1, ?, ?, ?, ?, ?)", id, it.name, it.nameAr, it.desc, it.descAr, it.price, it.img, it.popular, it.rating, it.rc, it.pt, it.cal, it.cat)
+                DB.Exec("INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, '🍽️', ?, ?, 1, ?, ?, ?, ?, ?, ?)", id, it.name, it.nameAr, it.desc, it.descAr, it.price, it.img, it.popular, it.rating, it.rc, it.pt, it.cal, it.cat, it.rest)
         }
 
         // Coupons
@@ -203,7 +224,7 @@ func Seed() {
                 var maxD interface{}; if c.max > 0 { maxD = c.max }
                 DB.Exec("INSERT INTO coupons (id, code, description_ar, type, value, min_order, max_discount, is_active, used_count) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)", id, c.code, c.descAr, c.typ, c.val, c.min, maxD)
         }
-        log.Println("✅ Seed done: 5 cats, 20 items, 4 coupons, 1 admin")
+        log.Println("✅ Seed done: 6 cats, 5 restaurants, 22 items, 4 coupons, 1 admin")
 }
 
 // ===== HANDLERS =====
@@ -556,6 +577,87 @@ func HandleUpdateSetting(w http.ResponseWriter, r *http.Request) {
         writeJSON(w, 200, map[string]interface{}{"success": true, "key": b.Key, "value": b.Value})
 }
 
+// ===== RESTAURANTS =====
+func HandleGetRestaurants(w http.ResponseWriter, r *http.Request) {
+        rows, err := DB.Query("SELECT id, name, name_ar, description_ar, image_url, cover_url, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_pro, cuisines FROM restaurants WHERE is_active = 1 ORDER BY is_pro DESC, rating DESC")
+        if err != nil { writeErr(w, 500, "فشل تحميل المطاعم"); return }
+        defer rows.Close()
+        var restaurants []map[string]interface{}
+        for rows.Next() {
+                var id, name, nameAr string
+                var descAr, imgURL, coverURL, cuisines sql.NullString
+                var rating float64
+                var rc, dtMin, dtMax int
+                var dFee, minOrd float64
+                var isPro bool
+                rows.Scan(&id, &name, &nameAr, &descAr, &imgURL, &coverURL, &rating, &rc, &dtMin, &dtMax, &dFee, &minOrd, &isPro, &cuisines)
+                restaurants = append(restaurants, map[string]interface{}{
+                        "id": id, "name": name, "nameAr": nameAr,
+                        "descriptionAr": descAr.String, "imageUrl": imgURL.String, "coverUrl": coverURL.String,
+                        "rating": rating, "ratingCount": rc,
+                        "deliveryTimeMin": dtMin, "deliveryTimeMax": dtMax,
+                        "deliveryFee": dFee, "minOrder": minOrd,
+                        "isPro": isPro, "cuisines": cuisines.String,
+                })
+        }
+        writeJSON(w, 200, map[string]interface{}{"restaurants": restaurants})
+}
+
+func HandleGetRestaurant(w http.ResponseWriter, r *http.Request) {
+        id := r.PathValue("id")
+        if id == "" { id = r.URL.Query().Get("id") }
+        if id == "" { writeErr(w, 400, "معرف المطعم مطلوب"); return }
+
+        var name, nameAr string
+        var descAr, imgURL, coverURL, cuisines sql.NullString
+        var rating float64
+        var rc, dtMin, dtMax int
+        var dFee, minOrd float64
+        var isPro, isActive bool
+        err := DB.QueryRow("SELECT name, name_ar, description_ar, image_url, cover_url, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_pro, is_active, cuisines FROM restaurants WHERE id = ?", id).
+                Scan(&name, &nameAr, &descAr, &imgURL, &coverURL, &rating, &rc, &dtMin, &dtMax, &dFee, &minOrd, &isPro, &isActive, &cuisines)
+        if err != nil { writeErr(w, 404, "المطعم غير موجود"); return }
+
+        // Get menu items
+        itemRows, _ := DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id FROM menu_items WHERE restaurant_id = ? AND is_available = 1 ORDER BY is_popular DESC, price ASC", id)
+        type MenuItem struct {
+                ID string `json:"id"`
+                Name string `json:"name"`
+                NameAr string `json:"nameAr"`
+                Description string `json:"description"`
+                DescriptionAr string `json:"descriptionAr"`
+                Price float64 `json:"price"`
+                Image string `json:"image"`
+                ImageURL *string `json:"imageUrl"`
+                IsPopular bool `json:"isPopular"`
+                IsAvailable bool `json:"isAvailable"`
+                Rating float64 `json:"rating"`
+                RatingCount int `json:"ratingCount"`
+                PrepTime int `json:"prepTime"`
+                Calories int `json:"calories"`
+                CategoryID string `json:"categoryId"`
+        }
+        var items []MenuItem
+        for itemRows.Next() {
+                var m MenuItem
+                var imgU sql.NullString
+                itemRows.Scan(&m.ID, &m.Name, &m.NameAr, &m.Description, &m.DescriptionAr, &m.Price, &m.Image, &imgU, &m.IsPopular, &m.IsAvailable, &m.Rating, &m.RatingCount, &m.PrepTime, &m.Calories, &m.CategoryID)
+                if imgU.Valid { m.ImageURL = &imgU.String }
+                items = append(items, m)
+        }
+        itemRows.Close()
+
+        writeJSON(w, 200, map[string]interface{}{
+                "id": id, "name": name, "nameAr": nameAr,
+                "descriptionAr": descAr.String, "imageUrl": imgURL.String, "coverUrl": coverURL.String,
+                "rating": rating, "ratingCount": rc,
+                "deliveryTimeMin": dtMin, "deliveryTimeMax": dtMax,
+                "deliveryFee": dFee, "minOrder": minOrd,
+                "isPro": isPro, "cuisines": cuisines.String,
+                "menu": items,
+        })
+}
+
 // ===== MAIN =====
 func main() {
         if err := InitDB(); err != nil { log.Fatalf("❌ DB: %v", err) }
@@ -565,6 +667,8 @@ func main() {
 
         // Public
         mux.HandleFunc("GET /api/health", HandleHealth)
+        mux.HandleFunc("GET /api/restaurants", HandleGetRestaurants)
+        mux.HandleFunc("GET /api/restaurants/{id}", HandleGetRestaurant)
         mux.HandleFunc("POST /api/auth/register", HandleRegister)
         mux.HandleFunc("POST /api/auth/login", HandleLogin)
         mux.HandleFunc("GET /api/menu", HandleMenu)

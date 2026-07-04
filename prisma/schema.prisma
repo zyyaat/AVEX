@@ -47,6 +47,29 @@ model Favorite {
   @@unique([userId, menuItemId])
 }
 
+model Restaurant {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String
+  description String?
+  descriptionAr String?
+  image       String?
+  imageUrl    String?
+  coverUrl    String?
+  rating      Float    @default(4.5)
+  ratingCount Int      @default(0)
+  deliveryTimeMin Int  @default(20)
+  deliveryTimeMax Int  @default(45)
+  deliveryFee Float    @default(3.99)
+  minOrder    Float    @default(0)
+  isActive    Boolean  @default(true)
+  isPro       Boolean  @default(false)
+  cuisines    String?  // comma separated: "عربي, برغر, بيتزا"
+  createdAt   DateTime @default(now())
+  menuItems   MenuItem[]
+  orders      Order[]
+}
+
 model Category {
   id        String   @id @default(cuid())
   name      String
@@ -74,6 +97,8 @@ model MenuItem {
   calories    Int      @default(0)
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id])
+  restaurantId String
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   orderItems  OrderItem[]
   favorites   Favorite[]
 }
@@ -83,6 +108,8 @@ model Order {
   orderNumber String   @unique
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  restaurantId String?
+  restaurant  Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   customerName String
   phone       String
   locationLat  Float?
@@ -92,6 +119,7 @@ model Order {
   subtotal    Float
   deliveryFee Float
   discount    Float    @default(0)
+  tax         Float    @default(0)
   couponCode  String?
   total       Float
   paymentMethod String @default("cash")
