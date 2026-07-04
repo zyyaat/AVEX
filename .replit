@@ -1,0 +1,24 @@
+run = "bash scripts/start.sh"
+hidden = [".config", "package.json", "tsconfig.json", "bun.lock"]
+entrypoint = "src/app/page.tsx"
+modules = ["nodejs-20", "go-1.23"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "bash scripts/start.sh"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[env]
+PORT = "8080"
+DB_DRIVER = "sqlite"
+JWT_SECRET = "avex-production-secret-change-me"
