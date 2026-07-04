@@ -38,6 +38,12 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
 
+  // Coupon state
+  const [couponCode, setCouponCode] = useState('')
+  const [couponDiscount, setCouponDiscount] = useState(0)
+  const [couponStatus, setCouponStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
+  const [appliedCoupon, setAppliedCoupon] = useState('')
+
   // Location state
   const [locationState, setLocationState] = useState<LocationState>('idle')
   const [location, setLocation] = useState<{ lat: number; lng: number; address?: string } | null>(null)
