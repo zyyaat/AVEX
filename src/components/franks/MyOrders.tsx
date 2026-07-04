@@ -14,7 +14,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
   ready: { label: 'جاهز', color: 'bg-cyan-100 text-cyan-700', icon: Package },
   picked_up: { label: 'تم الاستلام', color: 'bg-orange-100 text-orange-700', icon: Bike },
   delivering: { label: 'في الطريق', color: 'bg-indigo-100 text-indigo-700', icon: Bike },
-  delivered: { label: 'تم التوصيل', color: 'bg-green-100 text-green-700', icon: Home },
+  delivered: { label: 'تم التوصيل', color: 'bg-gray-100 text-gray-700', icon: Home },
   cancelled: { label: 'ملغى', color: 'bg-red-100 text-red-700', icon: X },
   rejected: { label: 'مرفوض', color: 'bg-red-100 text-red-700', icon: X },
 }
@@ -92,11 +92,11 @@ export function MyOrders({ onBack, onLoginRequired }: MyOrdersProps) {
               </div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between text-gray-500"><span>المجموع الفرعي</span><span>{order.subtotal?.toFixed(2)} ج.م</span></div>
-                <div className="flex justify-between text-gray-500"><span>رسوم التوصيل</span><span>{order.deliveryFee === 0 ? <span className="text-green-600 font-bold">مجاني</span> : `${order.deliveryFee?.toFixed(2)} ج.م`}</span></div>
-                {order.discount > 0 && <div className="flex justify-between text-green-600"><span>الخصم</span><span className="font-bold">-{order.discount?.toFixed(2)} ج.م</span></div>}
+                <div className="flex justify-between text-gray-500"><span>رسوم التوصيل</span><span>{order.deliveryFee === 0 ? <span className="text-gray-500 font-bold">مجاني</span> : `${order.deliveryFee?.toFixed(2)} ج.م`}</span></div>
+                {order.discount > 0 && <div className="flex justify-between text-gray-500"><span>الخصم</span><span className="font-bold">-{order.discount?.toFixed(2)} ج.م</span></div>}
                 <div className="flex justify-between font-bold text-base pt-1 border-t"><span>الإجمالي</span><span className="text-black">{order.total?.toFixed(2)} ج.م</span></div>
               </div>
-              {order.locationUrl && <a href={order.locationUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-2.5"><span className="text-xs font-medium text-green-800 flex items-center gap-2"><MapPin className="w-4 h-4" /> موقع التوصيل</span><ExternalLink className="w-4 h-4 text-green-600" /></a>}
+              {order.locationUrl && <a href={order.locationUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-xl p-2.5"><span className="text-xs font-medium text-black flex items-center gap-2"><MapPin className="w-4 h-4" /> موقع التوصيل</span><ExternalLink className="w-4 h-4 text-gray-500" /></a>}
             </motion.div>
           )
         })}

@@ -115,12 +115,12 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
               }}
               placeholder="01012345678"
               required
-              className={`rounded-lg ${form.phone && !/^01[0125][0-9]{8}$/.test(form.phone) ? 'border-red-500' : form.phone.length === 11 && /^01[0125][0-9]{8}$/.test(form.phone) ? 'border-green-500' : ''}`}
+              className={`rounded-lg ${form.phone && !/^01[0125][0-9]{8}$/.test(form.phone) ? 'border-red-500' : form.phone.length === 11 && /^01[0125][0-9]{8}$/.test(form.phone) ? 'border-black' : ''}`}
               dir="ltr"
               inputMode="tel"
             />
             {form.phone && form.phone.length === 11 && /^01[0125][0-9]{8}$/.test(form.phone) && (
-              <p className="text-[10px] text-green-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> رقم مصري صحيح</p>
+              <p className="text-[10px] text-gray-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> رقم مصري صحيح</p>
             )}
           </div>
 

@@ -129,7 +129,7 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
             <SheetFooter className="border-t border-gray-100 p-4 space-y-2 flex-shrink-0" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px) + 40px)' }}>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between text-gray-500"><span>المجموع الفرعي</span><span className="text-black">{subtotal.toFixed(2)} ج.م</span></div>
-                <div className="flex justify-between text-gray-500"><span>التوصيل</span><span className="text-black">{deliveryFee === 0 ? <span className="text-green-600">مجاني</span> : `${deliveryFee.toFixed(2)} ج.م`}</span></div>
+                <div className="flex justify-between text-gray-500"><span>التوصيل</span><span className="text-black">{deliveryFee === 0 ? <span className="text-gray-500">مجاني</span> : `${deliveryFee.toFixed(2)} ج.م`}</span></div>
                 <Separator />
                 <div className="flex justify-between font-bold pt-1"><span>الإجمالي</span><span>{total.toFixed(2)} ج.م</span></div>
               </div>

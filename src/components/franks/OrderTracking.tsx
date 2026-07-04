@@ -101,13 +101,13 @@ export function OrderTracking({ initialOrderNumber, onBack }: OrderTrackingProps
             ) : (
               <div className="bg-red-50 rounded-lg border border-red-200 p-5 text-center"><X className="w-10 h-10 text-red-500 mx-auto mb-2" /><h3 className="font-bold text-red-800">{order.status === 'cancelled' ? 'تم إلغاء الطلب' : 'تم رفض الطلب'}</h3></div>
             )}
-            {order.locationUrl && <div className="bg-green-50 border border-green-200 rounded-lg p-4"><h4 className="font-bold text-sm mb-2 text-green-800 flex items-center gap-2"><MapPin className="w-4 h-4" /> موقع التوصيل</h4><a href={order.locationUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 bg-white rounded-lg p-2.5 border border-green-200 hover:border-green-400"><span className="text-sm font-medium text-green-800">فتح على خرائط جوجل</span><ExternalLink className="w-4 h-4 text-green-600" /></a></div>}
+            {order.locationUrl && <div className="bg-gray-50 border border-gray-200 rounded-lg p-4"><h4 className="font-bold text-sm mb-2 text-black flex items-center gap-2"><MapPin className="w-4 h-4" /> موقع التوصيل</h4><a href={order.locationUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 bg-white rounded-lg p-2.5 border border-gray-200 hover:border-gray-400"><span className="text-sm font-medium text-black">فتح على خرائط جوجل</span><ExternalLink className="w-4 h-4 text-gray-500" /></a></div>}
             <div className="bg-white rounded-lg border p-5">
               <h3 className="font-bold text-base mb-4">عناصر الطلب</h3>
               <div className="space-y-3">{order.items?.map((item: any) => <div key={item.id} className="flex items-center justify-between text-sm"><div className="flex items-center gap-2"><span className="bg-gray-100 rounded px-2 py-0.5 text-xs font-bold">{item.quantity}×</span><span className="font-medium">{item.name}</span></div><span className="font-bold">{(item.price * item.quantity).toFixed(2)} ج.م</span></div>)}</div>
               <div className="border-t mt-4 pt-4 space-y-2 text-sm">
                 <div className="flex justify-between text-gray-500"><span>المجموع الفرعي</span><span>{order.subtotal?.toFixed(2)} ج.م</span></div>
-                <div className="flex justify-between text-gray-500"><span>رسوم التوصيل</span><span>{order.deliveryFee === 0 ? <span className="text-green-600 font-bold">مجاني</span> : `${order.deliveryFee?.toFixed(2)} ج.م`}</span></div>
+                <div className="flex justify-between text-gray-500"><span>رسوم التوصيل</span><span>{order.deliveryFee === 0 ? <span className="text-gray-500 font-bold">مجاني</span> : `${order.deliveryFee?.toFixed(2)} ج.م`}</span></div>
                 <div className="flex justify-between font-bold text-base pt-1"><span>الإجمالي</span><span className="text-black">{order.total?.toFixed(2)} ج.م</span></div>
               </div>
             </div>

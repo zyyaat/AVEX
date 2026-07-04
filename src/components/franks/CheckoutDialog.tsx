@@ -233,7 +233,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                     phone && !/^01[0125][0-9]{8}$/.test(phone)
                       ? 'border-red-500'
                       : phone.length === 11 && /^01[0125][0-9]{8}$/.test(phone)
-                      ? 'border-green-500'
+                      ? 'border-black'
                       : ''
                   }`}
                   dir="ltr"
@@ -288,22 +288,22 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="rounded-xl border-2 border-green-500 bg-green-50 p-4 space-y-3"
+                  className="rounded-xl border-2 border-black bg-gray-50 p-4 space-y-3"
                 >
-                  <div className="flex items-center gap-2 text-green-700">
-                    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-2 text-black">
+                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center flex-shrink-0">
                       <CheckCircle2 className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-sm">تم تحديد موقعك بنجاح</p>
-                      <p className="text-xs text-green-600" dir="ltr">
+                      <p className="text-xs text-gray-500" dir="ltr">
                         {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleResetLocation}
-                      className="text-green-600 hover:text-green-800 p-1"
+                      className="text-gray-500 hover:text-black p-1"
                       aria-label="إعادة تحديد الموقع"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -315,13 +315,13 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                     href={googleMapsUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between gap-2 bg-white rounded-lg p-2.5 border border-green-200 hover:border-green-400 hover:bg-green-50 transition-colors group"
+                    className="flex items-center justify-between gap-2 bg-white rounded-lg p-2.5 border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-colors group"
                   >
                     <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="w-4 h-4 text-green-600" />
-                      <span className="font-medium text-green-800">عرض الموقع على خرائط جوجل</span>
+                      <MapPin className="w-4 h-4 text-gray-500" />
+                      <span className="font-medium text-black">عرض الموقع على خرائط جوجل</span>
                     </div>
-                    <ExternalLink className="w-4 h-4 text-green-600 group-hover:translate-x-[-2px] transition-transform" />
+                    <ExternalLink className="w-4 h-4 text-gray-500 group-hover:translate-x-[-2px] transition-transform" />
                   </a>
                 </motion.div>
               )}
@@ -391,14 +391,14 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                 <span>رسوم التوصيل</span>
                 <span className="font-medium text-black">
                   {deliveryFee === 0 ? (
-                    <span className="text-green-600 font-bold">مجاني</span>
+                    <span className="text-gray-500 font-bold">مجاني</span>
                   ) : (
                     `${deliveryFee.toFixed(2)} ج.م`
                   )}
                 </span>
               </div>
               {couponDiscount > 0 && (
-                <div className="flex justify-between text-green-600">
+                <div className="flex justify-between text-gray-500">
                   <span>الخصم ({appliedCoupon})</span>
                   <span className="font-bold">-{couponDiscount.toFixed(2)} ج.م</span>
                 </div>

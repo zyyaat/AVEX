@@ -155,7 +155,7 @@ function AddCardDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenC
           </div>
           <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50"><input type="checkbox" checked={saveAsDefault} onChange={(e) => setSaveAsDefault(e.target.checked)} className="w-4 h-4 accent-black" /><span className="text-sm">تعيين كبطاقة افتراضية</span></label>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg p-2">{error}</p>}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2"><Lock className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-xs font-medium text-green-800">دفع آمن ومشفّر</p><p className="text-[10px] text-green-600">لا نحفظ أرقام البطاقات</p></div></div>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-start gap-2"><Lock className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" /><div><p className="text-xs font-medium text-black">دفع آمن ومشفّر</p><p className="text-[10px] text-gray-500">لا نحفظ أرقام البطاقات</p></div></div>
           <Button type="submit" disabled={saving} className="w-full h-12 rounded-lg font-bold bg-black hover:bg-gray-800">{saving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : null}<CreditCard className="w-4 h-4 ml-2" /> حفظ البطاقة</Button>
         </form>
       </DialogContent>

@@ -143,7 +143,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: Restaurant; onCli
           </span>
           <span>
             {restaurant.deliveryFee === 0 ? (
-              <span className="text-green-600 font-medium">توصيل مجاني</span>
+              <span className="text-gray-500">توصيل مجاني</span>
             ) : (
               `${restaurant.deliveryFee.toFixed(2)} ج.م توصيل`
             )}

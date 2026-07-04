@@ -103,9 +103,9 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-              className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center"
+              className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center"
             >
-              <CheckCircle2 className="w-12 h-12 text-green-600" />
+              <CheckCircle2 className="w-12 h-12 text-gray-500" />
             </motion.div>
             <div>
               <h2 className="text-2xl font-extrabold text-black">تم استلام طلبك! 🎉</h2>
@@ -145,16 +145,16 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
               href={locationUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-3 hover:bg-green-100 transition-colors group"
+              className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-xl p-3 hover:bg-gray-100 transition-colors group"
             >
               <div className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-green-600" />
+                <MapPin className="w-5 h-5 text-gray-500" />
                 <div>
-                  <p className="text-sm font-bold text-green-800">موقع التوصيل</p>
-                  <p className="text-xs text-green-600">اضغط لعرض الموقع على خرائط جوجل</p>
+                  <p className="text-sm font-bold text-black">موقع التوصيل</p>
+                  <p className="text-xs text-gray-500">اضغط لعرض الموقع على خرائط جوجل</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-green-600 group-hover:translate-x-[-2px] transition-transform" />
+              <ExternalLink className="w-4 h-4 text-gray-500 group-hover:translate-x-[-2px] transition-transform" />
             </a>
           )}
 
