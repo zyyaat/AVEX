@@ -45,7 +45,9 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
 
   const subtotal = getSubtotal()
   const deliveryFee = getDeliveryFee()
-  const total = getTotal()
+  const taxRate = 0.14 // 14% VAT (Egypt)
+  const tax = Math.max(0, (subtotal - couponDiscount) * taxRate)
+  const total = Math.max(0, subtotal + deliveryFee - couponDiscount + tax)
 
   const googleMapsUrl = location
     ? `https://www.google.com/maps?q=${location.lat},${location.lng}`
@@ -370,29 +372,39 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
             <Separator />
 
             {/* Order summary */}
-            <div className="space-y-2 bg-muted/50 rounded-lg p-3 text-sm">
-              <div className="flex justify-between text-muted-foreground">
+            <div className="space-y-2 bg-gray-50 rounded-lg p-3 text-sm">
+              <div className="flex justify-between text-gray-500">
                 <span>عدد الأصناف</span>
-                <span className="font-medium text-foreground">{items.length}</span>
+                <span className="font-medium text-black">{items.length}</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
+              <div className="flex justify-between text-gray-500">
                 <span>المجموع الفرعي</span>
-                <span className="font-medium text-foreground">{subtotal.toFixed(2)} د.أ</span>
+                <span className="font-medium text-black">{subtotal.toFixed(2)} ج.م</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
+              <div className="flex justify-between text-gray-500">
                 <span>رسوم التوصيل</span>
-                <span className="font-medium text-foreground">
+                <span className="font-medium text-black">
                   {deliveryFee === 0 ? (
                     <span className="text-green-600 font-bold">مجاني</span>
                   ) : (
-                    `${deliveryFee.toFixed(2)} د.أ`
+                    `${deliveryFee.toFixed(2)} ج.م`
                   )}
                 </span>
+              </div>
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>الخصم ({appliedCoupon})</span>
+                  <span className="font-bold">-{couponDiscount.toFixed(2)} ج.م</span>
+                </div>
+              )}
+              <div className="flex justify-between text-gray-500">
+                <span>الضريبة (14%)</span>
+                <span className="font-medium text-black">{tax.toFixed(2)} ج.م</span>
               </div>
               <Separator />
               <div className="flex justify-between items-center pt-1">
                 <span className="font-bold">الإجمالي</span>
-                <span className="font-extrabold text-lg text-primary">{total.toFixed(2)} د.أ</span>
+                <span className="font-extrabold text-lg text-black">{total.toFixed(2)} ج.م</span>
               </div>
             </div>
           </form>
@@ -417,7 +429,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
             ) : !location ? (
               'حدد موقعك أولاً للمتابعة'
             ) : (
-              `تأكيد الطلب • ${total.toFixed(2)} د.أ`
+              `تأكيد الطلب • ${total.toFixed(2)} ج.م`
             )}
           </Button>
         </div>
