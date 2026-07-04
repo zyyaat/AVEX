@@ -12,10 +12,12 @@ import { CartDrawer } from '@/components/franks/CartDrawer'
 import { CheckoutDialog } from '@/components/franks/CheckoutDialog'
 import { OrderSuccessDialog } from '@/components/franks/OrderSuccessDialog'
 import { FloatingCartButton } from '@/components/franks/FloatingCartButton'
+import { BottomTabBar } from '@/components/franks/BottomTabBar'
 import { OrderTracking } from '@/components/franks/OrderTracking'
 import { MyOrders } from '@/components/franks/MyOrders'
 import { AccountPage } from '@/components/franks/AccountPage'
 import { AuthDialog } from '@/components/franks/AuthDialog'
+import { SearchPage } from '@/components/franks/SearchPage'
 import { AdminDashboard } from '@/components/admin/AdminDashboard'
 
 export default function Home() {
@@ -32,6 +34,7 @@ export default function Home() {
   const trackOrderNumber = searchParams.get('track')
   const myOrdersMode = searchParams.get('myorders') === '1'
   const accountMode = searchParams.get('account') === '1'
+  const searchMode = searchParams.get('search') === '1'
   const authParam = searchParams.get('auth')
 
   useEffect(() => {
@@ -47,20 +50,21 @@ export default function Home() {
     }
   }, [authParam])
 
-  const handleExitAdmin = () => router.push('/')
-  const handleExitTracking = () => router.push('/')
-  const handleExitMyOrders = () => router.push('/')
+  const goHome = () => router.push('/')
   const handleLoginRequired = () => { setAuthMode('login'); setAuthOpen(true) }
   const handleCheckout = () => setCheckoutOpen(true)
   const handleOrderSuccess = (num: string) => { setOrderNumber(num); setSuccessOpen(true) }
 
-  if (adminMode) return <AdminDashboard onExit={handleExitAdmin} />
-  if (trackOrderNumber !== null) return <OrderTracking initialOrderNumber={trackOrderNumber || undefined} onBack={handleExitTracking} />
-  if (myOrdersMode) return <><MyOrders onBack={handleExitMyOrders} onLoginRequired={handleLoginRequired} /><AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} /></>
-  if (accountMode) return <><AccountPage onBack={() => router.push('/')} onLoginRequired={handleLoginRequired} /><AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} /></>
+  // Special modes
+  if (adminMode) return <AdminDashboard onExit={goHome} />
+  if (trackOrderNumber !== null) return <OrderTracking initialOrderNumber={trackOrderNumber || undefined} onBack={goHome} />
+  if (myOrdersMode) return <><MyOrders onBack={goHome} onLoginRequired={handleLoginRequired} /><AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} /><BottomTabBar /></>
+  if (accountMode) return <><AccountPage onBack={goHome} onLoginRequired={handleLoginRequired} /><AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} /><BottomTabBar /></>
+  if (searchMode) return <><SearchPage onBack={goHome} /><BottomTabBar /></>
 
+  // Main store
   return (
-    <div className="min-h-dvh flex flex-col bg-background">
+    <div className="min-h-dvh flex flex-col bg-white pb-14 sm:pb-0">
       <Header />
       <main className="flex-1">
         <Hero />
@@ -69,11 +73,14 @@ export default function Home() {
         <AboutSection />
       </main>
       <Footer />
+
+      {/* Overlays */}
       <CartDrawer onCheckout={handleCheckout} />
       <FloatingCartButton />
       <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} onSuccess={handleOrderSuccess} />
       <OrderSuccessDialog key={orderNumber} open={successOpen} onOpenChange={setSuccessOpen} orderNumber={orderNumber} />
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialMode={authMode} />
+      <BottomTabBar />
     </div>
   )
 }

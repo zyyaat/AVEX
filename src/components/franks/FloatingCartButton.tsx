@@ -17,7 +17,7 @@ export function FloatingCartButton() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           className="fixed left-3 right-3 z-50 sm:hidden"
-          style={{ bottom: 'max(60px, env(safe-area-inset-bottom, 0px))' }}
+          style={{ bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))' }}
         >
           <button onClick={() => setOpen(true)} className="w-full bg-black text-white rounded-lg shadow-fluent-lg px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-800 active:scale-[0.98] transition-fluent">
             <div className="flex items-center gap-3">

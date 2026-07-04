@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Loader2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { MenuCard } from './MenuCard'
+import { MenuCard, MenuCardSkeleton } from './MenuCard'
+import { ProductDetail } from './ProductDetail'
 
 interface MenuItemType {
   id: string; name: string; nameAr: string; description: string; descriptionAr: string
@@ -17,6 +18,8 @@ export function MenuSection() {
   const [activeCategory, setActiveCategory] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -35,12 +38,18 @@ export function MenuSection() {
       ),
     }))
     .filter((c) => c.items.length > 0)
+
   const popular = categories.flatMap(c => c.items).filter(i => i.isPopular).slice(0, 8)
 
   const scrollTo = (id: string) => {
     setActiveCategory(id)
     if (id === 'all') document.getElementById('menu-start')?.scrollIntoView({ behavior: 'smooth' })
     else sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const openDetail = (item: MenuItemType) => {
+    setSelectedItem(item)
+    setDetailOpen(true)
   }
 
   return (
@@ -66,39 +75,65 @@ export function MenuSection() {
 
         <div id="menu-start" />
 
-        {/* Popular */}
-        {!searchQuery && activeCategory === 'all' && popular.length > 0 && (
-          <div className="mb-10">
-            <h3 className="text-base font-bold text-black mb-3">الأكثر طلباً</h3>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
-              {popular.map(item => <div key={item.id} className="w-56 flex-shrink-0"><MenuCard item={item} /></div>)}
+        {/* Loading skeleton */}
+        {loading ? (
+          <div className="space-y-8">
+            <div>
+              <div className="h-5 w-24 bg-gray-100 rounded animate-pulse mb-3" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => <MenuCardSkeleton key={i} />)}
+              </div>
+            </div>
+            <div>
+              <div className="h-5 w-24 bg-gray-100 rounded animate-pulse mb-3" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => <MenuCardSkeleton key={i} />)}
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Menu */}
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
         ) : (
-          <div className="space-y-8">
-            {filtered.map(cat => (
-              <div key={cat.id} ref={el => { sectionRefs.current[cat.id] = el }} className="scroll-mt-20">
-                <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-lg font-bold text-black">{cat.nameAr}</h3>
-                  <span className="text-xs text-gray-400">{cat.items.length}</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {cat.items.map(item => <MenuCard key={item.id} item={item} />)}
+          <>
+            {/* Popular */}
+            {!searchQuery && activeCategory === 'all' && popular.length > 0 && (
+              <div className="mb-10">
+                <h3 className="text-base font-bold text-black mb-3">الأكثر طلباً</h3>
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+                  {popular.map(item => <div key={item.id} className="w-56 flex-shrink-0"><MenuCard item={item} onClick={() => openDetail(item)} /></div>)}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-16"><p className="text-gray-400">لا توجد نتائج</p></div>
+            {/* Menu by category */}
+            <div className="space-y-8">
+              {filtered.map(cat => (
+                <div key={cat.id} ref={el => { sectionRefs.current[cat.id] = el }} className="scroll-mt-20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-lg font-bold text-black">{cat.nameAr}</h3>
+                    <span className="text-xs text-gray-400">{cat.items.length}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {cat.items.map(item => <MenuCard key={item.id} item={item} onClick={() => openDetail(item)} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Empty state */}
+            {filtered.length === 0 && (
+              <div className="text-center py-16">
+                <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                  <Search className="w-6 h-6 text-gray-300" />
+                </div>
+                <p className="text-sm font-medium text-black">لا توجد نتائج</p>
+                <p className="text-xs text-gray-400 mt-1">جرّب كلمات بحث أخرى</p>
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      {/* Product Detail Bottom Sheet */}
+      <ProductDetail item={selectedItem} open={detailOpen} onOpenChange={setDetailOpen} />
     </section>
   )
 }
