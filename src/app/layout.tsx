@@ -7,17 +7,13 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "AVEX | أفكس - توصيل سريع لكل ما تحتاجه",
-  description: "اطلب طعامك المفضل وأكثر مع AVEX - توصيل سريع، دفع آمن، وتجربة عالمية",
-  keywords: ["AVEX", "أفكس", "توصيل", "دليفري", "طعام", "delivery", "food"],
-  authors: [{ name: "AVEX" }],
-  icons: {
-    icon: "🚀",
-  },
+  title: "AVEX | توصيل سريع",
+  description: "اطلب طعامك المفضل مع AVEX",
+  icons: { icon: "🚀" },
 };
 
 export const viewport: Viewport = {
@@ -27,19 +23,13 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body
-        className={`${cairo.variable} font-cairo antialiased bg-background text-foreground`}
-      >
+      <body className={`${cairo.variable} font-cairo antialiased bg-white text-black`}>
         {children}
         <Toaster />
-        <SonnerToaster position="top-center" richColors />
+        <SonnerToaster position="top-center" />
       </body>
     </html>
   );
