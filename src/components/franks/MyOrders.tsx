@@ -8,9 +8,9 @@ import { ordersAPI } from '@/lib/api'
 import { useAuth } from '@/store/auth'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Package }> = {
-  new: { label: 'جديد', color: 'bg-amber-100 text-amber-700', icon: Clock },
-  accepted: { label: 'مقبول', color: 'bg-blue-100 text-blue-700', icon: CheckCircle2 },
-  preparing: { label: 'قيد التحضير', color: 'bg-purple-100 text-purple-700', icon: ChefHat },
+  new: { label: 'جديد', color: 'bg-gray-100 text-gray-700', icon: Clock },
+  accepted: { label: 'مقبول', color: 'bg-gray-100 text-gray-700', icon: CheckCircle2 },
+  preparing: { label: 'قيد التحضير', color: 'bg-gray-100 text-gray-700', icon: ChefHat },
   ready: { label: 'جاهز', color: 'bg-cyan-100 text-cyan-700', icon: Package },
   picked_up: { label: 'تم الاستلام', color: 'bg-orange-100 text-orange-700', icon: Bike },
   delivering: { label: 'في الطريق', color: 'bg-indigo-100 text-indigo-700', icon: Bike },
@@ -46,10 +46,10 @@ export function MyOrders({ onBack, onLoginRequired }: MyOrdersProps) {
   if (!isAuthenticated) {
     return (
       <div className="min-h-dvh bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center bg-card rounded-2xl border p-8 max-w-sm">
-          <Package className="w-12 h-12 text-violet-600 mx-auto mb-3" />
+        <div className="text-center bg-white rounded-lg border border-gray-200 p-8 max-w-sm">
+          <Package className="w-12 h-12 text-black mx-auto mb-3" />
           <h2 className="text-xl font-bold mb-2">سجّل دخولك أولاً</h2>
-          <Button onClick={onBack} className="rounded-xl bg-violet-600">العودة للمتجر</Button>
+          <Button onClick={onBack} className="rounded-xl bg-black">العودة للمتجر</Button>
         </div>
       </div>
     )
@@ -67,14 +67,14 @@ export function MyOrders({ onBack, onLoginRequired }: MyOrdersProps) {
       </header>
       <div className="container mx-auto px-4 py-6 max-w-2xl space-y-4">
         <div className="bg-white rounded-2xl border p-4 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-violet-50 flex items-center justify-center"><ShoppingBag className="w-6 h-6 text-violet-600" /></div>
+          <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center"><ShoppingBag className="w-6 h-6 text-black" /></div>
           <div className="flex-1">
             <p className="font-bold text-gray-900">مرحباً، {user?.name}!</p>
             <p className="text-xs text-gray-500">{orders.length > 0 ? `${orders.length} طلب` : 'لا توجد طلبات'}{user?.loyaltyPoints ? ` • ${user.loyaltyPoints} نقطة` : ''}</p>
           </div>
         </div>
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-violet-600" /></div>
-        : orders.length === 0 ? <div className="text-center py-20 bg-white rounded-2xl border"><Package className="w-12 h-12 text-gray-300 mx-auto mb-3" /><h3 className="text-lg font-bold mb-1">لا توجد طلبات</h3><Button onClick={onBack} className="rounded-xl bg-violet-600">تصفّح القائمة</Button></div>
+        {loading ? <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-black" /></div>
+        : orders.length === 0 ? <div className="text-center py-20 bg-white rounded-2xl border"><Package className="w-12 h-12 text-gray-300 mx-auto mb-3" /><h3 className="text-lg font-bold mb-1">لا توجد طلبات</h3><Button onClick={onBack} className="rounded-xl bg-black">تصفّح القائمة</Button></div>
         : orders.map((order, idx) => {
           const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.new
           const Icon = cfg.icon
@@ -94,7 +94,7 @@ export function MyOrders({ onBack, onLoginRequired }: MyOrdersProps) {
                 <div className="flex justify-between text-gray-500"><span>المجموع الفرعي</span><span>{order.subtotal?.toFixed(2)} ج.م</span></div>
                 <div className="flex justify-between text-gray-500"><span>رسوم التوصيل</span><span>{order.deliveryFee === 0 ? <span className="text-green-600 font-bold">مجاني</span> : `${order.deliveryFee?.toFixed(2)} ج.م`}</span></div>
                 {order.discount > 0 && <div className="flex justify-between text-green-600"><span>الخصم</span><span className="font-bold">-{order.discount?.toFixed(2)} ج.م</span></div>}
-                <div className="flex justify-between font-bold text-base pt-1 border-t"><span>الإجمالي</span><span className="text-violet-600">{order.total?.toFixed(2)} ج.م</span></div>
+                <div className="flex justify-between font-bold text-base pt-1 border-t"><span>الإجمالي</span><span className="text-black">{order.total?.toFixed(2)} ج.م</span></div>
               </div>
               {order.locationUrl && <a href={order.locationUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-2.5"><span className="text-xs font-medium text-green-800 flex items-center gap-2"><MapPin className="w-4 h-4" /> موقع التوصيل</span><ExternalLink className="w-4 h-4 text-green-600" /></a>}
             </motion.div>

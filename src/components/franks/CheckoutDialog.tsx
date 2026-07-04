@@ -174,12 +174,12 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[92dvh] overflow-hidden rounded-2xl p-0 flex flex-col gap-0">
+      <DialogContent className="max-w-md max-h-[92dvh] overflow-hidden rounded-lg p-0 flex flex-col gap-0">
         {/* Scrollable content */}
         <div className="overflow-y-auto p-4 sm:p-6 flex-1">
           <DialogHeader className="flex-shrink-0 mb-4">
             <DialogTitle className="text-xl flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
+              <CheckCircle2 className="w-5 h-5 text-black" />
               إتمام الطلب
             </DialogTitle>
             <DialogDescription>
@@ -193,7 +193,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
               <div className="space-y-1.5">
                 <Label htmlFor="customerName" className="text-sm font-medium flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5" />
-                  الاسم الكامل <span className="text-destructive">*</span>
+                  الاسم الكامل <span className="text-red-600">*</span>
                 </Label>
                 <Input
                   id="customerName"
@@ -208,7 +208,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
               <div className="space-y-1.5">
                 <Label htmlFor="phone" className="text-sm font-medium flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5" />
-                  رقم الهاتف <span className="text-destructive">*</span>
+                  رقم الهاتف <span className="text-red-600">*</span>
                 </Label>
                 <Input
                   id="phone"
@@ -231,7 +231,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                   required
                   className={`rounded-lg ${
                     phone && !/^01[0125][0-9]{8}$/.test(phone)
-                      ? 'border-destructive'
+                      ? 'border-red-500'
                       : phone.length === 11 && /^01[0125][0-9]{8}$/.test(phone)
                       ? 'border-green-500'
                       : ''
@@ -248,7 +248,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
             <div className="space-y-3">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5" />
-                موقع التوصيل <span className="text-destructive">*</span>
+                موقع التوصيل <span className="text-red-600">*</span>
               </Label>
 
               {/* Locate Me button - changes color based on state */}
@@ -260,8 +260,8 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                   variant={locationState === 'error' ? 'destructive' : 'outline'}
                   className={`w-full h-12 rounded-xl font-bold transition-all ${
                     locationState === 'error'
-                      ? 'bg-destructive text-white hover:bg-destructive/90'
-                      : 'border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5'
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'border-2 border-dashed border-black/40 hover:border-black hover:bg-gray-50'
                   }`}
                 >
                   {locationState === 'loading' ? (
@@ -328,12 +328,12 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
 
               {/* Error message */}
               {locationState === 'error' && locationError && (
-                <p className="text-xs text-destructive bg-destructive/5 rounded-lg p-2">
+                <p className="text-xs text-red-600 bg-red-50 rounded-lg p-2">
                   {locationError}
                 </p>
               )}
 
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <p className="text-[11px] text-gray-500 leading-relaxed">
                 💡 سيتم فتح خرائط جوجل لعرض موقعك بدقة. تأكد من تفعيل GPS والسماح بالوصول للموقع.
               </p>
             </div>
@@ -352,8 +352,8 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                   htmlFor="cash"
                   className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                     paymentMethod === 'cash'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/40'
+                      ? 'border-black bg-gray-50'
+                      : 'border-gray-200 hover:border-black/40'
                   }`}
                 >
                   <RadioGroupItem value="cash" id="cash" />
@@ -364,8 +364,8 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
                   htmlFor="card"
                   className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                     paymentMethod === 'card'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/40'
+                      ? 'border-black bg-gray-50'
+                      : 'border-gray-200 hover:border-black/40'
                   }`}
                 >
                   <RadioGroupItem value="card" id="card" />
@@ -418,7 +418,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
 
         {/* Fixed footer with submit button - always visible */}
         <div
-          className="border-t border-border p-4 bg-card flex-shrink-0"
+          className="border-t border-gray-200 p-4 bg-white flex-shrink-0"
           style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <Button

@@ -78,30 +78,30 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
       <DialogContent className="max-w-md max-h-[92dvh] overflow-y-auto overscroll-contain rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
-            {mode === 'login' ? <><LogIn className="w-5 h-5 text-violet-600" /> تسجيل الدخول</> : <><UserPlus className="w-5 h-5 text-violet-600" /> إنشاء حساب جديد</>}
+            {mode === 'login' ? <><LogIn className="w-5 h-5 text-black" /> تسجيل الدخول</> : <><UserPlus className="w-5 h-5 text-black" /> إنشاء حساب جديد</>}
           </DialogTitle>
           <DialogDescription>
             {mode === 'login' ? 'سجّل دخولك للوصول لطلباتك ومتابعتها بسهولة' : 'أنشئ حساباً للاستفادة من كل المزايا'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-1 bg-muted p-1 rounded-xl">
-          <button type="button" onClick={() => setMode('login')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'login' ? 'bg-card shadow-sm text-violet-600' : 'text-muted-foreground'}`}>دخول</button>
-          <button type="button" onClick={() => setMode('register')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'register' ? 'bg-card shadow-sm text-violet-600' : 'text-muted-foreground'}`}>حساب جديد</button>
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          <button type="button" onClick={() => setMode('login')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'login' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>دخول</button>
+          <button type="button" onClick={() => setMode('register')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'register' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>حساب جديد</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <AnimatePresence mode="wait">
             {mode === 'register' && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-1.5">
-                <Label className="text-sm font-medium flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> الاسم الكامل <span className="text-destructive">*</span></Label>
+                <Label className="text-sm font-medium flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> الاسم الكامل <span className="text-red-600">*</span></Label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="أحمد محمد" required className="rounded-lg" />
               </motion.div>
             )}
           </AnimatePresence>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> رقم الهاتف <span className="text-destructive">*</span> <span className="text-[10px] text-muted-foreground mr-auto">11 رقم</span></Label>
+            <Label className="text-sm font-medium flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> رقم الهاتف <span className="text-red-600">*</span> <span className="text-[10px] text-gray-500 mr-auto">11 رقم</span></Label>
             <Input
               type="tel"
               value={form.phone}
@@ -115,7 +115,7 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
               }}
               placeholder="01012345678"
               required
-              className={`rounded-lg ${form.phone && !/^01[0125][0-9]{8}$/.test(form.phone) ? 'border-destructive' : form.phone.length === 11 && /^01[0125][0-9]{8}$/.test(form.phone) ? 'border-green-500' : ''}`}
+              className={`rounded-lg ${form.phone && !/^01[0125][0-9]{8}$/.test(form.phone) ? 'border-red-500' : form.phone.length === 11 && /^01[0125][0-9]{8}$/.test(form.phone) ? 'border-green-500' : ''}`}
               dir="ltr"
               inputMode="tel"
             />
@@ -134,24 +134,24 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
           </AnimatePresence>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> كلمة المرور <span className="text-destructive">*</span></Label>
+            <Label className="text-sm font-medium flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> كلمة المرور <span className="text-red-600">*</span></Label>
             <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••" required className="rounded-lg" dir="ltr" minLength={6} />
-            <p className="text-[10px] text-muted-foreground">6 أحرف على الأقل</p>
+            <p className="text-[10px] text-gray-500">6 أحرف على الأقل</p>
           </div>
 
           {mode === 'register' && (
-            <div className="bg-violet-50 border border-violet-100 rounded-xl p-3 space-y-1.5">
-              <p className="text-xs font-bold text-violet-600 mb-2">مزايا إنشاء حساب:</p>
-              {['📦 تتبع جميع طلباتك من مكان واحد', '📍 حفظ عناوينك لإعادة الاستخدام', '❤️ حفظ منتجاتك المفضلة', '🎁 نقاط ولاء مع كل طلب'].map((b, i) => <p key={i} className="text-[11px] text-muted-foreground">{b}</p>)}
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-1.5">
+              <p className="text-xs font-bold text-black mb-2">مزايا إنشاء حساب:</p>
+              {['📦 تتبع جميع طلباتك من مكان واحد', '📍 حفظ عناوينك لإعادة الاستخدام', '❤️ حفظ منتجاتك المفضلة', '🎁 نقاط ولاء مع كل طلب'].map((b, i) => <p key={i} className="text-[11px] text-gray-500">{b}</p>)}
             </div>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full h-12 text-base font-bold rounded-xl shadow-lg bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800">
+          <Button type="submit" disabled={loading} className="w-full h-12 text-base font-bold rounded-xl shadow-lg bg-black hover:bg-gray-800">
             {loading ? <><Loader2 className="w-5 h-5 ml-2 animate-spin" /> جاري المعالجة...</> : mode === 'login' ? 'تسجيل الدخول' : 'إنشاء الحساب'}
           </Button>
 
-          <p className="text-center text-xs text-muted-foreground">
-            {mode === 'login' ? <>ليس لديك حساب؟ <button type="button" onClick={() => setMode('register')} className="text-violet-600 font-bold hover:underline">أنشئ حساباً</button></> : <>لديك حساب بالفعل؟ <button type="button" onClick={() => setMode('login')} className="text-violet-600 font-bold hover:underline">سجّل دخولك</button></>}
+          <p className="text-center text-xs text-gray-500">
+            {mode === 'login' ? <>ليس لديك حساب؟ <button type="button" onClick={() => setMode('register')} className="text-black font-bold hover:underline">أنشئ حساباً</button></> : <>لديك حساب بالفعل؟ <button type="button" onClick={() => setMode('login')} className="text-black font-bold hover:underline">سجّل دخولك</button></>}
           </p>
         </form>
       </DialogContent>

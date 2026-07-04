@@ -89,7 +89,7 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
           </DialogDescription>
           <button
             onClick={handleClose}
-            className="absolute top-4 left-4 w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
+            className="absolute top-4 left-4 w-8 h-8 rounded-full hover: bg-gray-100 flex items-center justify-center"
             aria-label="إغلاق"
           >
             <X className="w-4 h-4" />
@@ -108,17 +108,17 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
               <CheckCircle2 className="w-12 h-12 text-green-600" />
             </motion.div>
             <div>
-              <h2 className="text-2xl font-extrabold text-foreground">تم استلام طلبك! 🎉</h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <h2 className="text-2xl font-extrabold text-black">تم استلام طلبك! 🎉</h2>
+              <p className="text-sm text-gray-500 mt-1">
                 شكراً لك، طلبك قيد المعالجة الآن
               </p>
             </div>
           </div>
 
           {/* Order number */}
-          <div className="bg-muted/50 rounded-xl p-4 flex items-center justify-between">
+          <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">رقم الطلب</p>
+              <p className="text-xs text-gray-500 mb-1">رقم الطلب</p>
               <p className="font-bold text-lg tracking-wider" dir="ltr">{orderNumber}</p>
             </div>
             <Button
@@ -133,10 +133,10 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
           </div>
 
           {/* Estimated time */}
-          <div className="flex items-center justify-center gap-2 text-sm bg-primary/5 rounded-lg p-3">
-            <Clock className="w-4 h-4 text-primary" />
-            <span className="text-muted-foreground">الوقت المتوقع للتوصيل:</span>
-            <span className="font-bold text-primary">30 - 45 دقيقة</span>
+          <div className="flex items-center justify-center gap-2 text-sm bg-gray-50 rounded-lg p-3">
+            <Clock className="w-4 h-4 text-black" />
+            <span className="text-gray-500">الوقت المتوقع للتوصيل:</span>
+            <span className="font-bold text-black">30 - 45 دقيقة</span>
           </div>
 
           {/* Location link */}
@@ -172,7 +172,7 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
                     {idx < STEPS.length - 1 && (
                       <div
                         className={`absolute right-5 top-10 w-0.5 h-full ${
-                          idx < currentStep ? 'bg-primary' : 'bg-border'
+                          idx < currentStep ? 'bg-black' : 'bg-gray-200'
                         }`}
                       />
                     )}
@@ -182,11 +182,11 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
                       initial={false}
                       animate={{
                         scale: isCurrent ? [1, 1.15, 1] : 1,
-                        backgroundColor: isDone ? 'var(--primary)' : 'var(--muted)',
+                        backgroundColor: isDone ? '#000000' : '#f3f4f6',
                       }}
                       transition={{ duration: 0.4, repeat: isCurrent ? Infinity : 0, repeatDelay: 1 }}
                       className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${
-                        isDone ? 'text-primary-foreground' : 'text-muted-foreground'
+                        isDone ? 'text-black-foreground' : 'text-gray-500'
                       }`}
                     >
                       <Icon className="w-5 h-5" />
@@ -194,10 +194,10 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
 
                     {/* Text */}
                     <div className="flex-1 pt-1.5">
-                      <p className={`font-bold text-sm ${isDone ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      <p className={`font-bold text-sm ${isDone ? 'text-black' : 'text-gray-500'}`}>
                         {step.label}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{step.description}</p>
                     </div>
                   </div>
                 )
@@ -216,7 +216,7 @@ export function OrderSuccessDialog({ open, onOpenChange, orderNumber }: OrderSuc
             </Button>
           </div>
 
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-xs text-gray-500">
             للاستفسار عن طلبك اتصل على: <span className="font-bold" dir="ltr">+962 6 555 1234</span>
           </p>
         </div>
