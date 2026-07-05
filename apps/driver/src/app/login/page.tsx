@@ -3,13 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Bike, Phone, Lock, ArrowLeft, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import {
+  Bike, Phone, Lock, ArrowLeft, Loader2, Eye, EyeOff, EyeOn,
+  AlertCircle, ShieldCheck, Info,
+} from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, isAuthenticated, isLoading, initialize } = useAuth()
+  const { login, isAuthenticated, isLoading, initialize, mustChangePassword } = useAuth()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -17,19 +20,26 @@ export default function LoginPage() {
 
   useEffect(() => {
     initialize().then(() => {
-      if (useAuth.getState().isAuthenticated) router.replace('/')
+      const s = useAuth.getState()
+      if (s.isAuthenticated) {
+        if (s.mustChangePassword) router.replace('/change-password')
+        else router.replace('/')
+      }
     })
   }, [router, initialize])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!phone || !password) { setError('ادخل رقم الهاتف وكلمة المرور'); return }
+    if (!phone || !password) {
+      setError('ادخل رقم الهاتف وكلمة المرور')
+      return
+    }
     try {
       const { mustChangePassword } = await login(phone, password)
       if (mustChangePassword) {
-        toast.info('يجب تغيير كلمة المرور')
-        router.replace('/?change-password=1')
+        toast.info('يجب تغيير كلمة المرور أولاً')
+        router.replace('/change-password')
       } else {
         router.replace('/')
       }
@@ -40,40 +50,61 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-dvh bg-white flex flex-col" dir="rtl">
-      {/* Header */}
+      {/* Top bar */}
       <div className="px-4 h-14 flex items-center">
         <button
           onClick={() => router.back()}
           className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center transition-fluent"
+          aria-label="رجوع"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Logo + Title */}
+      {/* Hero + form */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 -mt-10">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-20 h-20 rounded-2xl bg-black flex items-center justify-center mb-5"
+          initial={{ opacity: 0, scale: 0.85, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="w-20 h-20 rounded-2xl bg-black flex items-center justify-center mb-5 shadow-fluent-lg"
         >
           <Bike className="w-10 h-10 text-white" strokeWidth={2} />
         </motion.div>
-        <h1 className="text-2xl font-bold mb-1">AVEX Driver</h1>
-        <p className="text-sm text-gray-500 mb-8">تطبيق المندوب — سجّل دخولك للبدء</p>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-3">
+        <motion.h1
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="text-2xl font-bold mb-1"
+        >
+          AVEX Driver
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="text-sm text-gray-500 mb-8 text-center"
+        >
+          تطبيق المندوب — سجّل دخولك للبدء
+        </motion.p>
+
+        <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-3" noValidate>
           {error && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-start gap-2 text-sm">
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-start gap-2 text-sm"
+              role="alert"
+            >
               <AlertCircle className="w-4 h-4 text-black flex-shrink-0 mt-0.5" />
               <span className="text-gray-700">{error}</span>
-            </div>
+            </motion.div>
           )}
 
           {/* Phone */}
           <div className="relative">
-            <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type="tel"
               inputMode="tel"
@@ -81,43 +112,54 @@ export default function LoginPage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="01xxxxxxxxx"
-              className="w-full h-12 pr-10 pl-4 rounded-lg border border-gray-200 bg-white text-right focus:outline-none focus:border-black transition-fluent"
+              autoComplete="tel"
+              className="w-full h-12 pr-10 pl-4 rounded-lg border border-gray-200 bg-white text-right focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-fluent"
             />
           </div>
 
           {/* Password */}
           <div className="relative">
-            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="كلمة المرور"
-              className="w-full h-12 pr-10 pl-10 rounded-lg border border-gray-200 bg-white text-right focus:outline-none focus:border-black transition-fluent"
+              autoComplete="current-password"
+              className="w-full h-12 pr-10 pl-10 rounded-lg border border-gray-200 bg-white text-right focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-fluent"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-fluent"
+              aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full h-12 rounded-lg bg-black text-white font-medium hover:bg-gray-800 transition-fluent disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full h-12 rounded-lg bg-black text-white font-medium hover:bg-gray-800 active:bg-gray-900 transition-fluent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'تسجيل الدخول'}
           </button>
         </form>
 
+        {/* Info box: registration is via company portal */}
+        <div className="mt-6 w-full max-w-sm bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-start gap-2">
+          <Info className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-600 leading-relaxed">
+            حساب المندوب يُنشأ بواسطة <b>الشركة</b> عبر البورتال الإداري.
+            لا يمكنك إنشاء حساب بنفسك. لو محتاج حساب، تواصل مع الإدارة.
+          </p>
+        </div>
+
         {/* Demo hint */}
-        <div className="mt-8 text-center text-xs text-gray-400">
+        <div className="mt-6 text-center text-xs text-gray-400">
           <p>حسابات تجريبية:</p>
-          <p dir="ltr" className="mt-1">01100000001 / 01100000002 — كلمة المرور: 123456</p>
+          <p dir="ltr" className="mt-1 font-mono">01100000001 / 01100000002 — 123456</p>
         </div>
       </div>
     </div>
