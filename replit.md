@@ -1,8 +1,8 @@
 # AVEX — Replit Agent Build & Operate Guide
 
 > 🚨 **READ THIS ENTIRE FILE FIRST. It is your primary instruction.**
-> AVEX is a **multi-app food delivery platform**. This Replit runs ONE part of it.
-> The other 5 parts run on **separate Replits** and depend on this repo staying intact.
+> AVEX is a **multi-app food delivery platform** with 6 independently deployable parts.
+> This Replit runs ONE part. The other 5 run on **separate Replits** sharing the same repo.
 >
 > **Your job**: build, fix, and operate ONLY the part assigned to this Replit.
 > **Never delete or restructure** the rest of the repo — it is shared by 6 Replits.
@@ -41,345 +41,310 @@ If `.replit` is missing or `run` is empty, **STOP and ask the user which part to
 ## 2. STRICT RULES (violations break the whole platform)
 
 ### 🚫 NEVER do any of these:
-1. **NEVER delete files or folders** outside your assigned part. The other `apps/` folders, `backend/`, `scripts/`, and `*.md` files belong to other Replits.
-2. **NEVER replace this `replit.md` file** with a template or shorten it. It is the source of truth.
+1. **NEVER delete files or folders** outside your assigned part.
+2. **NEVER replace this `replit.md` file** with a template or shorten it.
 3. **NEVER restructure the repo** — folder layout is intentional and shared.
-4. **NEVER add SQLite** — backend is PostgreSQL ONLY. Do not install `modernc.org/sqlite` or any SQLite driver.
-5. **NEVER use `?` SQL placeholders** — PostgreSQL uses `$1, $2, $3, ...`. See section 8.
+4. **NEVER add SQLite** — backend is PostgreSQL ONLY.
+5. **NEVER use `?` SQL placeholders** — PostgreSQL uses `$1, $2, $3, ...`.
 6. **NEVER use `1/0` for booleans in SQL** — use `TRUE/FALSE`.
-7. **NEVER use `datetime('now', ...)` or `GROUP_CONCAT(...)`** — these are SQLite-only. Use `NOW() - INTERVAL '...'` and `STRING_AGG(...)`.
+7. **NEVER use `datetime('now', ...)` or `GROUP_CONCAT(...)`** — use `NOW() - INTERVAL '...'` and `STRING_AGG(...)`.
 8. **NEVER run `git push --force`** or rewrite git history.
 9. **NEVER install dependencies in the wrong app** — if this is the Customer Replit, only touch `apps/customer/package.json`.
-10. **NEVER change the design system** — pure white + black + gray only. No colors. Cairo font. RTL Arabic.
+10. **NEVER change the design system** — pure white + black + gray only. Cairo font. RTL Arabic.
 
 ### ✅ ALWAYS do these:
 1. Only edit files inside your assigned part's folder.
-2. Use the existing run scripts in `scripts/` — do not invent new ones.
+2. Use the existing run scripts in `scripts/`.
 3. Ask the user before making structural changes.
-4. If you're unsure about anything, **STOP and ask** — do not guess.
+4. If unsure about anything, **STOP and ask** — do not guess.
 
 ---
 
-## 3. Run & Operate commands
+## 3. THE PROXY ROUTE — How all apps connect to the backend
+
+**This is the most critical integration point.** Every Next.js app has a proxy route that forwards API calls to the Go backend. Without it, the apps can't reach the database.
+
+### Where it lives
+Every Next.js app has this file:
+```
+apps/<app-name>/src/app/api/[...path]/route.ts
+```
+
+### How it works
+1. The frontend calls `/api/driver/auth/login` (relative URL)
+2. Next.js catches it in the proxy route
+3. The proxy forwards it to `${BACKEND_URL}/api/driver/auth/login`
+4. `BACKEND_URL` defaults to `http://localhost:8080` (dev) or the Backend Replit URL (production)
+
+### The proxy code (same in all 5 apps)
+```typescript
+const API_BASE = process.env.BACKEND_URL || 'http://localhost:8080'
+const REQUEST_TIMEOUT = 15000
+const MAX_RETRIES = 2
+
+// Forwards: GET, POST, PUT, PATCH, DELETE
+// - Preserves Authorization header
+// - Retries on network failure (2 retries with backoff)
+// - Returns 503 with Arabic error if backend unreachable
+```
+
+### Agent instruction: VERIFY THE PROXY WORKS
+When you start any Next.js app Replit, you MUST:
+1. Check that `apps/<app-name>/src/app/api/[...path]/route.ts` exists
+2. Check that it reads `process.env.BACKEND_URL`
+3. Check that `BACKEND_URL` is set as a Replit Secret
+4. Test the proxy by calling `/api/health` — should return `{"service":"avex-api","status":"ok"}`
+5. If the proxy returns 503, the backend is down or `BACKEND_URL` is wrong
+
+### If the proxy is broken, FIX it:
+```bash
+# Check if file exists
+ls apps/<app-name>/src/app/api/[...path]/route.ts
+
+# If missing, copy from another app
+cp apps/driver/src/app/api/[...path]/route.ts apps/<app-name>/src/app/api/[...path]/route.ts
+```
+
+---
+
+## 4. ENVIRONMENT VARIABLES (Secrets)
+
+### Backend Replit (REQUIRED)
+- `DATABASE_URL` — PostgreSQL connection string (REQUIRED)
+  - Example: `postgres://user:pass@host:5432/avex?sslmode=require`
+  - Free providers: Neon (neon.tech), Supabase (supabase.com)
+- `JWT_SECRET` — random string (optional, has default)
+- `PORT` — defaults to 8080
+
+### Next.js App Replits (REQUIRED)
+- `BACKEND_URL` — URL of the Backend Replit (REQUIRED)
+  - Example: `https://avex-backend.yourname.repl.co`
+  - The proxy route uses this to forward API calls
+
+### How to set Secrets on Replit
+1. Open the Replit
+2. Go to **Tools → Secrets** (or click the lock icon in sidebar)
+3. Add key + value
+4. The app reads it via `process.env.KEY`
+
+---
+
+## 5. Run & Operate commands
 
 ### Backend Replit (port 8080)
 ```bash
 bash scripts/replit-backend.sh
 ```
-What this script does:
-1. Checks `DATABASE_URL` env var is set (fails with clear error if not)
+What this does:
+1. Checks `DATABASE_URL` is set (fails with clear error if not)
 2. `cd backend && go build -o avex-api ./cmd/server`
 3. Runs `./avex-api` on `PORT` (default 8080)
-
-On first run, the backend auto-creates all tables and seeds demo data.
+4. Auto-creates all 28 tables + seeds demo data on first run
 
 ### Next.js App Replits (ports 3000-3004)
 ```bash
 bash scripts/replit-app.sh <app-name> <port>
-# Example for Customer: bash scripts/replit-app.sh customer 3000
+# Example: bash scripts/replit-app.sh customer 3000
 ```
-What this script does:
+What this does:
 1. `cd apps/<app-name>`
 2. Installs deps with `bun install` (or `npm install` fallback)
 3. `npx next build`
 4. `npx next start -p <port>`
 
-### Required environment variables (Replit Secrets)
-
-#### Backend Replit
-- `DATABASE_URL` (**REQUIRED**) — PostgreSQL connection string
-  - Example: `postgres://user:pass@host:5432/avex?sslmode=require`
-  - Free providers: Neon (neon.tech), Supabase (supabase.com)
-- `JWT_SECRET` (optional, has default) — random string for JWT signing
-- `PORT` (optional, default 8080)
-
-#### Next.js App Replits
-- `BACKEND_URL` (**REQUIRED**) — URL of the Backend Replit
-  - Example: `https://avex-backend.yourname.repl.co`
-- `PORT` (optional, set by the script argument)
-
 ---
 
-## 4. Tech Stack
+## 6. INTEGRATION — How all apps work together
 
-| Layer | Technology |
-|---|---|
-| Backend | Go 1.23, `net/http`, `pgx/v5` (PostgreSQL driver), JWT (`golang-jwt/jwt/v5`), bcrypt, `rs/cors` |
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, Zustand, Framer Motion, Lucide icons |
-| Database | **PostgreSQL ONLY** (no SQLite) |
-| Auth | 4 JWT types: customer, driver, merchant, agent (each with its own middleware) |
-| Design | Microsoft Fluent — pure white (`#FFFFFF`) + black (`#000000`) + gray (`#9CA3AF`/`#6B7280`/`#F3F4F6`). NO colors. |
-| Font | Cairo (Arabic + Latin), RTL layout |
-
----
-
-## 5. Backend architecture (Go modular monolith)
-
+### The data flow
 ```
-backend/
-├── cmd/server/main.go              ← Entry point (~40 lines, registers all routes)
-└── internal/
-    ├── shared/                     ← Shared infrastructure
-    │   ├── db.go                   (DB connection + schema + migrations — PostgreSQL ONLY)
-    │   ├── seed.go                 (Seed: customers, restaurants, drivers, merchants, agents)
-    │   ├── auth.go                 (Claims struct + 4 JWT generators + phone helpers)
-    │   ├── http.go                 (WriteJSON + 6 middlewares)
-    │   ├── geo.go                  (HaversineM — distance in meters)
-    │   └── settings.go             (GetSetting + FindZoneByLatLng)
-    ├── dispatch/                   ← Shared algorithms
-    │   ├── dispatch.go             (DispatchOrder + AcceptOfferInternal)
-    │   ├── pricing.go              (ComputeDriverFee)
-    │   └── tier.go                 (EvaluateDriverTier)
-    ├── customer/   (handlers.go + routes.go — 13 endpoints)
-    ├── driver/     (handlers.go + routes.go — 21 endpoints)
-    ├── merchant/   (handlers.go + routes.go — 14 endpoints)
-    ├── support/    (handlers.go + routes.go — 12 endpoints)
-    └── admin/      (handlers.go + routes.go — 35+ endpoints)
+Customer app (3000)  ─┐
+Driver app (3001)    ─┤
+Admin app (3002)     ─┼──► Proxy route ──► Backend (8080) ──► PostgreSQL
+Support app (3003)   ─┤                     (Go API)
+Merchant app (3004)  ─┘
 ```
 
-### Pattern
-- Each app package exposes `RegisterRoutes(mux *http.ServeMux)`.
-- `cmd/server/main.go` calls all 5 `RegisterRoutes` functions.
-- Single binary serves all apps on port 8080.
+### Critical integration points
 
-### Middlewares (6)
-- `AuthMW` — customer JWT
-- `OptionalAuthMW` — optional customer JWT (for anonymous checkout)
-- `AdminMW` — requires admin flag
-- `DriverAuthMW` — driver JWT
-- `MerchantAuthMW` — merchant JWT (carries restaurant_id)
-- `AgentAuthMW` — support agent JWT (also has admin privileges)
-
----
-
-## 6. Database (PostgreSQL ONLY)
-
-### 28 tables
-
-**Customer core (12):** users, addresses, favorites, restaurants, categories, menu_items, orders, order_items, coupons, settings, saved_cards, payment_transactions
-
-**Zones & tiers (4):** delivery_zones, driver_tiers, tier_thresholds, tier_zone_prices
-
-**Driver system (7):** driver_applications, drivers, driver_stats, driver_shifts, driver_tier_history, dispatch_offers, support_tickets
-
-**Support (1):** support_messages
-
-**Merchant (3):** merchants, store_hours, scheduled_orders
-
-**Agents (1):** support_agents
-
-### Schema rules (PostgreSQL-only)
-- `BOOLEAN DEFAULT TRUE/FALSE` (never `1/0`)
-- `TIMESTAMP DEFAULT CURRENT_TIMESTAMP`
-- `TEXT PRIMARY KEY` (UUIDs as strings)
-- `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for migrations (PostgreSQL 9.6+)
-- `INSERT INTO settings (...) VALUES (...) ON CONFLICT (key) DO NOTHING` for idempotent inserts
-
-### Schema source of truth
-`backend/internal/shared/db.go` → `createSchema()` function. Read it before touching the DB.
-
----
-
-## 7. Driver Tier System
-
-### 4 tiers (managed by admin, editable from admin panel)
-
-| Code | Arabic name | sort_order | Color |
-|---|---|---|---|
-| `starter` | مبتدئ | 1 | `#9CA3AF` |
-| `bronze` | برونزي | 2 | `#A16207` |
-| `silver` | فضي | 3 | `#6B7280` |
-| `gold` | ذهبي | 4 | `#000000` |
-
-### Thresholds (tier_thresholds — editable from admin)
-
-| Tier | acceptance% | completion% | rating | on_time% | shift% | lifetime orders |
-|---|---|---|---|---|---|---|
-| starter | 0 | 0 | 0 | 0 | 0 | 0 |
-| bronze | 60 | 85 | 4.5 | 85 | 80 | 50 |
-| silver | 75 | 92 | 4.7 | 92 | 90 | 250 |
-| gold | 90 | 96 | 4.8 | 96 | 95 | 750 |
-
-### Downgrade factors
-1. Low acceptance rate (rejecting too many offers)
-2. Low customer rating (below 4.5/4.7)
-3. Low completion rate (below 90-95%)
-4. Low on-time rate (late deliveries)
-5. Late to shift (recorded in `driver_shifts.is_late`)
-6. Geofence violations
-7. Customer/restaurant complaints
-8. Inactivity (no login for long period)
-
-### Hard rule — NO driver cancellation
-Drivers **cannot** cancel an order after accepting it. The only way to cancel is to open a support ticket with a convincing reason, and a support agent approves it. Enforce this in the driver app UI and backend.
-
-### Tier evaluation algorithm
+#### 1. Order lifecycle (cross-app)
 ```
-INPUT: driver_id
-1. Read driver_stats (accepted, rejected, completed, on_time, rating_sum, rating_count, shift_scheduled, shift_attended)
-2. Compute:
-   acceptance_rate  = accepted / (accepted + rejected) × 100
-   completion_rate  = completed / accepted × 100
-   customer_rating  = rating_sum / rating_count
-   on_time_rate     = on_time_count / completed × 100
-   shift_adherence  = shift_attended / shift_scheduled × 100
-3. Load all driver_tiers ORDER BY sort_order DESC
-4. For each tier (highest first):
-   - Read tier_thresholds
-   - If driver meets ALL minimums → this is the new tier, break
-5. If new tier ≠ current → UPDATE drivers.tier_id + INSERT driver_tier_history
+Customer creates order
+  → Backend: order status = "accepted" (restaurant auto-accept)
+  → Backend: dispatch algorithm runs, creates dispatch_offers
+  → Driver app: polls /api/driver/offers every 3s
+  → Driver accepts offer
+  → Backend: order status = "assigned", driver_fee computed
+  → Driver: goes to restaurant (geofence 70m)
+  → Driver: confirms pickup → status = "picked_up"
+  → Merchant app: sees order move to "picked_up" in real-time (polls every 5s)
+  → Driver: goes to customer (geofence 50m)
+  → Driver: confirms delivery → status = "delivered"
+  → Backend: driver_stats updated, tier re-evaluated
+  → Customer: sees order delivered in tracking
 ```
 
-Runs automatically: every 24h + after each delivered order + manual from admin.
+#### 2. Driver tier system (cross-app)
+```
+Driver delivers orders
+  → Backend: updates driver_stats (accepted, completed, on_time, rating)
+  → Backend: evaluateDriverTier() runs after each delivery
+  → Driver app: shows current tier + progress to next tier
+  → Admin app: can manually override tier
+  → Admin app: can edit tier thresholds
+```
+
+#### 3. Support ticket flow (cross-app)
+```
+Driver: creates ticket in Driver app (/support)
+  → Backend: support_tickets row created
+  → Support app: agent sees ticket in inbox (polls every 8s)
+  → Support agent: assigns to self, replies
+  → Driver: sees reply in /support/[id] chat (polls every 5s)
+  → Support agent: can cancel order if ticket is cancellation_request
+```
+
+#### 4. Merchant menu changes (cross-app)
+```
+Merchant: edits menu in Merchant app
+  → Backend: menu_items updated
+  → Customer app: sees updated menu immediately (fetches from backend)
+  → Admin app: can also edit menu (admin has override)
+```
+
+### Agent instruction: ENSURE INTEGRATION WORKS
+When deploying or fixing any app:
+1. **Backend must be deployed first** — other apps depend on it
+2. **All Next.js apps must have `BACKEND_URL` Secret** pointing to the Backend Replit
+3. **Test the integration**:
+   - Customer creates order → Driver receives offer
+   - Driver delivers → Merchant sees status change
+   - Driver creates support ticket → Support agent sees it
+4. **If integration is broken**, check:
+   - Is `BACKEND_URL` set correctly? (no trailing slash, includes `https://`)
+   - Is the backend running? (call `/api/health`)
+   - Are there CORS issues? (backend allows all origins)
+   - Is the proxy route working? (check `apps/<app>/src/app/api/[...path]/route.ts`)
 
 ---
 
-## 8. SQL Dialect Rules (PostgreSQL ONLY) — CRITICAL
-
-If you write or modify any SQL query, follow these rules strictly:
+## 7. SQL Dialect Rules (PostgreSQL ONLY) — CRITICAL
 
 | ❌ Wrong (SQLite) | ✅ Right (PostgreSQL) |
 |---|---|
 | `WHERE is_active = 1` | `WHERE is_active = TRUE` |
-| `WHERE is_admin = 0` | `WHERE is_admin = FALSE` |
-| `INSERT ... VALUES (?, ?, ?)` | `INSERT ... VALUES ($1, $2, $3)` |
-| `SELECT * FROM x WHERE id = ?` | `SELECT * FROM x WHERE id = $1` |
+| `INSERT ... VALUES (?, ?)` | `INSERT ... VALUES ($1, $2)` |
 | `datetime('now', '-7 days')` | `NOW() - INTERVAL '7 days'` |
-| `datetime('now', '-30 seconds')` | `NOW() - INTERVAL '30 seconds'` |
 | `date('now')` | `CURRENT_DATE` |
-| `date(column)` | `DATE(column)` (works in both) |
 | `GROUP_CONCAT(expr, sep)` | `STRING_AGG(expr, sep)` |
-| `INSERT OR IGNORE INTO ...` | `INSERT INTO ... ON CONFLICT (key) DO NOTHING` |
+| `INSERT OR IGNORE INTO` | `INSERT INTO ... ON CONFLICT DO NOTHING` |
 | `ALTER TABLE x ADD COLUMN y` | `ALTER TABLE x ADD COLUMN IF NOT EXISTS y` |
-| Runtime-variable interval: `datetime('now', ?)` | `NOW() - make_interval(secs => $1)` |
-
-For dynamic query builders (building `SET` clauses at runtime), use `strconv.Itoa(n)` to generate `$1, $2, ...` placeholders. See `internal/admin/handlers.go` `HandleAdminUpdateMenuItem` for the pattern.
 
 ---
 
-## 9. The 4 Core Algorithms
+## 8. The 4 Core Algorithms
 
-### Algorithm 1 — Dispatch (when restaurant accepts order)
+### Dispatch (when restaurant accepts order)
 ```
-INPUT: order_id
-1. Get order.restaurant_id → restaurant.zone_id
-2. maxR = settings.dispatch_radius_m (default 5000m)
-3. Find eligible drivers:
-   - is_online = TRUE AND is_active = TRUE AND is_verified = TRUE
-   - tier_id IS NOT NULL
-   - location_updated_at > NOW() - INTERVAL '30 seconds'
-   - not currently assigned to another active order
-4. For each candidate, compute score:
-   distance_score = 1 - (distance_m / maxR)         -- closer = higher
-   tier_score     = tier.sort_order / max_sort      -- gold = 1.0
-   response_score = 1 - (avg_response_sec / 60)     -- faster = higher
-   shift_score    = 1.0 if in shift, else 0.5
-   total = distance×0.50 + tier×0.30 + response×0.10 + shift×0.10
-5. Sort by score DESC, take top 5
-6. Create dispatch_offers (status='pending', expires_at = NOW() + 15 seconds)
-7. If any of them has auto_accept = TRUE → accept immediately
+score = distance×0.50 + tier×0.30 + response×0.10 + shift×0.10
+Top 5 drivers get offers, each expires in 15 seconds
 ```
 
-### Algorithm 2 — Pricing
+### Pricing
 ```
-Customer fee (at checkout):
-  zone_id = restaurant.zone_id
-  Use silver-tier pricing for that zone as default
-  fee = base_fee + (distance_m/1000) × per_km_fee
-  Apply min_fee / max_fee / free_above
-
-Driver fee (at acceptance):
-  tier_id = driver.tier_id
-  zone_id = restaurant.zone_id
-  fee = base_fee + (delivery_distance_m/1000) × per_km_fee
-  Apply min_fee / max_fee
-
-Platform margin = customer_fee - driver_fee (stored in orders.platform_margin)
+Customer fee: silver-tier × zone pricing
+Driver fee: driver's tier × zone pricing
+Platform margin = customer_fee - driver_fee
 ```
 
-### Algorithm 3 — Geofence
+### Geofence
 ```
-Pickup (driver confirms picked-up from restaurant):
-  distance = haversine(driver, restaurant)
-  if distance > 70m → REJECT with "اقترب من المطعم بمسافة X متر (مطلوب أقل من 70 متر)"
-
-Delivery (driver confirms delivered to customer):
-  distance = haversine(driver, customer)
-  if distance > 50m → REJECT with "اقترب من العميل بمسافة X متر (مطلوب أقل من 50 متر)"
+Pickup: driver must be within 70m of restaurant
+Delivery: driver must be within 50m of customer
 ```
 
-### Algorithm 4 — Tier Evaluation
-See section 7 above.
-
-### Haversine (distance in meters)
-```go
-func HaversineM(lat1, lng1, lat2, lng2 float64) float64 {
-    const R = 6371000.0
-    rlat1 := lat1 * math.Pi / 180
-    rlat2 := lat2 * math.Pi / 180
-    dlat := (lat2 - lat1) * math.Pi / 180
-    dlng := (lng2 - lng1) * math.Pi / 180
-    a := 0.5 - 0.5*math.Cos(dlat) + math.Cos(rlat1)*math.Cos(rlat2)*(0.5-0.5*math.Cos(dlng))
-    return 2 * R * math.Asin(math.Sqrt(a))
-}
+### Tier Evaluation
+```
+acceptance_rate = accepted / (accepted + rejected) × 100
+completion_rate = completed / accepted × 100
+on_time_rate = on_time / completed × 100
+shift_adherence = attended / scheduled × 100
+Find highest tier whose thresholds are all met
 ```
 
 ---
 
-## 10. Driver registration flow (admin portal only)
+## 9. Build & fix instructions per Replit
 
-**Drivers CANNOT self-register.** The flow is:
+### If this is the **Backend Replit**
+```bash
+cd backend
+go build -o avex-api ./cmd/server
+./avex-api
+```
+Common fixes:
+- `DATABASE_URL not set` → add it as a Replit Secret
+- `go: command not found` → ensure `replit.nix` has `pkgs.go`
+- Build error → check SQL dialect rules (section 7)
 
-1. **Admin creates application** (via admin panel) with: name, phone, national_id, license_number, vehicle_type, vehicle_plate, address, emergency_phone
-2. **Admin reviews** the application
-3. **Admin verifies** → system creates `drivers` row with:
-   - `is_verified = TRUE`
-   - `tier_id = starter`
-   - `password = national_id` (initial)
-   - `must_change_password = TRUE`
-4. **Driver logs in** → must change password → can go online → receives offers
+When adding new endpoints:
+1. Add handler in `internal/<app>/handlers.go`
+2. Register route in `internal/<app>/routes.go`
+3. Use `$1, $2, ...` placeholders (NEVER `?`)
+4. Use `TRUE/FALSE` for booleans
 
-The driver app has **login only** — no register page.
+### If this is a **Next.js App Replit**
+```bash
+cd apps/<app-name>
+bun install
+npx next build
+npx next start -p <port>
+```
+Common fixes:
+- `App can't reach backend` → ensure `BACKEND_URL` Secret is set
+- `Cannot find module` → run `bun install`
+- `useSearchParams error` → wrap component in `<Suspense>`
+- `503 from proxy` → backend is down, check Backend Replit
 
----
-
-## 11. The 5 Next.js apps (shared design)
-
-All 5 apps share:
-- **Same design system**: pure white + black + gray (Microsoft Fluent)
-- **Cairo font**, RTL Arabic
-- **Tailwind CSS 4** with custom `--background`, `--foreground`, `--primary` (black), `--secondary` (gray)
-- **shadcn/ui** components
-- **Zustand** for state
-- **Framer Motion** for animations
-- **Proxy route** at `src/app/api/[...path]/route.ts` that forwards to `BACKEND_URL || http://localhost:8080`
-- **API client** at `src/lib/api.ts`
-
-### App-specific notes
-
-**Customer** (`apps/customer/`): Has the most components — HomeRestaurants, RestaurantPage, MenuCard, CartDrawer, CheckoutDialog, AuthDialog, MyOrders, AccountPage, OrderTracking, BottomTabBar.
-
-**Driver** (`apps/driver/`): Has OfferModal (15s SVG countdown), ActiveDelivery (4-step progress), TierBadge, polling every 3s for offers + 5s for GPS + 5s for active order.
-
-**Admin** (`apps/admin/`): Sidebar layout with 10 pages — Dashboard, Orders, Restaurants, Zones, Tiers, Tier Prices (matrix), Drivers, Applications, Support, Settings.
-
-**Support** (`apps/support/`): Sidebar with Inbox, Ticket Detail (chat + internal notes), Search (customers/drivers/orders), Order Detail, Driver Detail.
-
-**Merchant** (`apps/merchant/`): Sidebar with Dashboard (pause/resume), Orders KDS (cards with status), Menu CRUD, Store Hours (7 days).
+When adding new pages:
+1. Only edit files inside `apps/<your-app>/src/`
+2. Use `src/lib/api.ts` for API calls
+3. Use `src/components/ui/` for shadcn components
+4. Follow design: white bg, black primary, gray secondary. NO colors.
 
 ---
 
-## 12. API Endpoints (95+ total)
+## 10. Deployment order (CRITICAL)
 
-- **Customer**: 13 (auth, menu, restaurants, orders, addresses, cards, coupons)
-- **Driver**: 21 (auth, offers, delivery, earnings, support tickets)
-- **Merchant**: 14 (auth, orders KDS, menu CRUD, store hours, stats)
-- **Support**: 12 (agent auth, tickets, search, order/driver lookup)
-- **Admin**: 35+ (dashboard, zones, tiers, prices, drivers, applications, restaurants, settings, support)
+1. **Create PostgreSQL database** (Neon or Supabase — free)
+2. **Deploy Backend Replit FIRST**:
+   - Import repo
+   - Set `.replit` run line
+   - Add Secret `DATABASE_URL`
+   - Run → note the Backend URL
+3. **Deploy the 5 Next.js Replits** (any order):
+   - For each: import repo, set `.replit` run line
+   - Add Secret `BACKEND_URL` = Backend Replit URL
+   - Run
 
-Full list in `backend/internal/*/routes.go` (one file per app).
+---
 
-### Demo accounts (after seed)
+## 11. GOTCHAS (sharp edges)
+
+1. **`?` placeholders silently fail on PostgreSQL** — always use `$1, $2, ...`
+2. **Boolean `1/0` fails on PostgreSQL** — use `TRUE/FALSE`
+3. **`location_updated_at` staleness** — drivers offline if GPS not updated in 30s
+4. **Geofence**: 70m pickup, 50m delivery — enforced in backend
+5. **Restaurant auto-accept is mandatory** — orders go straight to dispatch
+6. **Drivers cannot cancel** — support ticket with convincing reason required
+7. **`replit.md` is the agent's source of truth** — never replace it
+8. **All 6 Replits share the same repo** — deleting files affects all
+9. **Proxy route is critical** — if missing, app can't reach backend
+10. **`BACKEND_URL` must not have trailing slash** — `https://api.example.com` not `https://api.example.com/`
+
+---
+
+## 12. DEMO ACCOUNTS (after seed)
 
 | App | Phone | Password |
 |---|---|---|
@@ -391,112 +356,24 @@ Full list in `backend/internal/*/routes.go` (one file per app).
 
 ---
 
-## 13. Build & fix instructions per Replit
-
-### If this is the **Backend Replit**
-
-To build and run:
-```bash
-cd backend
-go build -o avex-api ./cmd/server
-./avex-api
-```
-
-Common fixes:
-- **`DATABASE_URL not set`** → add it as a Replit Secret
-- **`go: command not found`** → ensure `replit.nix` has `pkgs.go`
-- **Build error from SQL syntax** → check section 8 (PostgreSQL dialect rules)
-- **`undefined: dispatch`** → import `"avex-backend/internal/dispatch"`
-- **Driver not receiving offers** → check `location_updated_at` is fresh (< 30s) and `is_online = TRUE`
-
-When adding new endpoints:
-1. Add handler function in the appropriate `internal/<app>/handlers.go`
-2. Register the route in `internal/<app>/routes.go`
-3. Use `shared.DB`, `shared.WriteJSON`, `shared.WriteErr`, `shared.GetUser(r)` etc.
-4. Use `$1, $2, ...` placeholders (NEVER `?`)
-5. Use `TRUE/FALSE` for booleans (NEVER `1/0`)
-
-### If this is a **Next.js App Replit** (customer/driver/admin/support/merchant)
-
-To build and run:
-```bash
-cd apps/<app-name>
-bun install   # or npm install
-npx next build
-npx next start -p <port>
-```
-
-Common fixes:
-- **App can't reach backend** → ensure `BACKEND_URL` Secret is set to the Backend Replit URL
-- **`Cannot find module`** → run `bun install` (or `npm install`)
-- **Build fails on `useSearchParams`** → wrap the component in `<Suspense>`
-- **Sonner `next-themes` error** → the sonner.tsx in each app already removes this dependency; don't re-add it
-
-When adding new pages/components:
-1. Only edit files inside `apps/<your-app>/src/`
-2. Use the existing `src/lib/api.ts` client
-3. Use the existing `src/components/ui/` shadcn components
-4. Follow the design system: white bg, black primary, gray secondary. NO colors.
-5. Use Cairo font (already configured in `layout.tsx`)
-6. RTL Arabic (`dir="rtl"` on root elements)
-
----
-
-## 14. Deployment order (when setting up fresh)
-
-1. **Create PostgreSQL database** (Neon or Supabase — free)
-2. **Deploy Backend Replit first**:
-   - Import repo
-   - Set `.replit` `run = "bash scripts/replit-backend.sh"`
-   - Add Secret `DATABASE_URL`
-   - Add Secret `JWT_SECRET`
-   - Run → note the Backend URL (e.g. `https://avex-backend.yourname.repl.co`)
-3. **Deploy the 5 Next.js Replits** (any order):
-   - For each: import repo, set `.replit` `run` to the right `replit-app.sh` command
-   - Add Secret `BACKEND_URL` = the Backend Replit URL
-   - Run
-
----
-
-## 15. Gotchas (sharp edges)
-
-1. **Backend dies between bash commands** in some dev environments — use `setsid nohup` pattern (already in scripts).
-2. **`?` placeholders silently fail on PostgreSQL** — always use `$1, $2, ...`.
-3. **Boolean `1/0` fails on PostgreSQL** — use `TRUE/FALSE`.
-4. **`location_updated_at` staleness** — drivers considered offline if GPS not updated within 30 seconds.
-5. **Dispatch scoring weights**: `distance×0.50 + tier×0.30 + response×0.10 + shift×0.10`. Don't change without user approval.
-6. **Geofence**: 70m pickup, 50m delivery — enforced in backend, not frontend.
-7. **Restaurant auto-accept is mandatory** — orders go straight to dispatch when placed.
-8. **Drivers cannot cancel** — only via support ticket with convincing reason.
-9. **`replit.md` is the agent's source of truth** — never replace it with a template.
-10. **All 6 Replits share the same repo** — deleting files in one affects all.
-
----
-
-## 16. Pointers (source-of-truth files)
+## 13. POINTERS (source-of-truth files)
 
 | What | Where |
 |---|---|
 | DB schema | `backend/internal/shared/db.go` → `createSchema()` |
 | Seed data | `backend/internal/shared/seed.go` |
 | API routes | `backend/internal/*/routes.go` |
-| Algorithms | `backend/internal/dispatch/` (dispatch.go, pricing.go, tier.go) |
+| Algorithms | `backend/internal/dispatch/` |
 | Frontend API clients | `apps/<app>/src/lib/api.ts` |
-| Design system (CSS) | `apps/<app>/src/app/globals.css` |
+| Proxy route | `apps/<app>/src/app/api/[...path]/route.ts` |
+| Design system | `apps/<app>/src/app/globals.css` |
 | Replit config | `.replit` |
 | Nix packages | `replit.nix` |
-| Agent instructions | `replit.md` (this file) |
 
 ---
 
-## 17. If you're unsure — STOP and ask
+## 14. IF UNSURE — STOP AND ASK
 
 Do not guess. Do not delete files. Do not restructure. Do not replace this file.
-
-If something is unclear, ask the user:
-- "Which part should this Replit run?"
-- "Should I modify the backend or just the frontend?"
-- "Is `DATABASE_URL` set as a Secret?"
-- "What is the Backend Replit URL for `BACKEND_URL`?"
 
 **Better to ask than to break the platform.**
