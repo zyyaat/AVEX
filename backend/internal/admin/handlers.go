@@ -5,6 +5,7 @@ import (
         "encoding/json"
         "fmt"
         "net/http"
+        "strconv"
 
         "avex-backend/internal/shared"
 
@@ -33,7 +34,7 @@ func HandleAdminCreateCategory(w http.ResponseWriter, r *http.Request) {
         if b.Name == "" || b.NameAr == "" { shared.WriteErr(w, 400, "الاسم مطلوب"); return }
         if b.Icon == "" { b.Icon = "🍽️" }
         id := uuid.New().String()
-        shared.DB.Exec("INSERT INTO categories (id, name, name_ar, icon, sort_order) VALUES (?, ?, ?, ?, ?)", id, b.Name, b.NameAr, b.Icon, b.Order)
+        shared.DB.Exec("INSERT INTO categories (id, name, name_ar, icon, sort_order) VALUES ($1, $2, $3, $4, $5)", id, b.Name, b.NameAr, b.Icon, b.Order)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 
@@ -53,7 +54,7 @@ func HandleAdminCreateMenuItem(w http.ResponseWriter, r *http.Request) {
         var b map[string]interface{}
         json.NewDecoder(r.Body).Decode(&b)
         id := uuid.New().String()
-        shared.DB.Exec("INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, prep_time, calories, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        shared.DB.Exec("INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, prep_time, calories, category_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
                 id, b["name"], b["nameAr"], b["description"], b["descriptionAr"], b["price"], b["image"], b["imageUrl"], b["isPopular"], b["isAvailable"], b["rating"], b["prepTime"], b["calories"], b["categoryId"])
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
@@ -67,17 +68,19 @@ func HandleAdminUpdateMenuItem(w http.ResponseWriter, r *http.Request) {
         for jk, dk := range fields {
                 if v, ok := b[jk]; ok {
                         if updates != "" { updates += ", " }
-                        updates += dk + " = ?"; args = append(args, v)
+                        updates += dk + " = $" + strconv.Itoa(len(args) + 1)
+                        args = append(args, v)
                 }
         }
         if updates == "" { shared.WriteJSON(w, 200, map[string]interface{}{"success": true}); return }
+        idPlaceholder := "$" + strconv.Itoa(len(args) + 1)
         args = append(args, id)
-        shared.DB.Exec("UPDATE menu_items SET "+updates+" WHERE id = ?", args...)
+        shared.DB.Exec("UPDATE menu_items SET "+updates+" WHERE id = "+idPlaceholder, args...)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
 func HandleAdminDeleteMenuItem(w http.ResponseWriter, r *http.Request) {
-        shared.DB.Exec("DELETE FROM menu_items WHERE id = ?", r.PathValue("id"))
+        shared.DB.Exec("DELETE FROM menu_items WHERE id = $1", r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -97,13 +100,13 @@ func HandleAdminCreateCoupon(w http.ResponseWriter, r *http.Request) {
         var b map[string]interface{}
         json.NewDecoder(r.Body).Decode(&b)
         id := uuid.New().String()
-        shared.DB.Exec("INSERT INTO coupons (id, code, description_ar, type, value, min_order, max_discount, is_active, used_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        shared.DB.Exec("INSERT INTO coupons (id, code, description_ar, type, value, min_order, max_discount, is_active, used_count) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)",
                 id, b["code"], b["descriptionAr"], b["type"], b["value"], b["minOrder"], b["maxDiscount"], b["isActive"])
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 
 func HandleAdminDeleteCoupon(w http.ResponseWriter, r *http.Request) {
-        shared.DB.Exec("DELETE FROM coupons WHERE id = ?", r.PathValue("id"))
+        shared.DB.Exec("DELETE FROM coupons WHERE id = $1", r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -111,7 +114,7 @@ func HandleUpdateSetting(w http.ResponseWriter, r *http.Request) {
         var b struct{ Key, Value string }
         json.NewDecoder(r.Body).Decode(&b)
         if b.Key == "" { shared.WriteErr(w, 400, "المفتاح مطلوب"); return }
-        shared.DB.Exec("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP", b.Key, b.Value)
+        shared.DB.Exec("INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP", b.Key, b.Value)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "key": b.Key, "value": b.Value})
 }
 
@@ -136,20 +139,20 @@ func HandleAdminCreateZone(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.NameAr == "" { shared.WriteErr(w, 400, "الاسم مطلوب"); return }
         id := "zone-" + uuid.New().String()[:8]
-        shared.DB.Exec("INSERT INTO delivery_zones (id, name, name_ar, center_lat, center_lng, radius_m, is_active) VALUES (?, ?, ?, ?, ?, ?, TRUE)", id, b.Name, b.NameAr, b.CenterLat, b.CenterLng, b.RadiusM)
+        shared.DB.Exec("INSERT INTO delivery_zones (id, name, name_ar, center_lat, center_lng, radius_m, is_active) VALUES ($1, $2, $3, $4, $5, $6, TRUE)", id, b.Name, b.NameAr, b.CenterLat, b.CenterLng, b.RadiusM)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 func HandleAdminUpdateZone(w http.ResponseWriter, r *http.Request) {
         id := r.PathValue("id")
         var b struct{ Name, NameAr string; CenterLat, CenterLng float64; RadiusM int; IsActive *bool }
         json.NewDecoder(r.Body).Decode(&b)
-        shared.DB.Exec("UPDATE delivery_zones SET name = COALESCE(NULLIF(?, ''), name), name_ar = COALESCE(NULLIF(?, ''), name_ar), center_lat = COALESCE(NULLIF(?, 0), center_lat), center_lng = COALESCE(NULLIF(?, 0), center_lng), radius_m = COALESCE(NULLIF(?, 0), radius_m) WHERE id = ?",
+        shared.DB.Exec("UPDATE delivery_zones SET name = COALESCE(NULLIF($1, ''), name), name_ar = COALESCE(NULLIF($2, ''), name_ar), center_lat = COALESCE(NULLIF($3, 0), center_lat), center_lng = COALESCE(NULLIF($4, 0), center_lng), radius_m = COALESCE(NULLIF($5, 0), radius_m) WHERE id = $6",
                 b.Name, b.NameAr, b.CenterLat, b.CenterLng, b.RadiusM, id)
-        if b.IsActive != nil { shared.DB.Exec("UPDATE delivery_zones SET is_active = ? WHERE id = ?", *b.IsActive, id) }
+        if b.IsActive != nil { shared.DB.Exec("UPDATE delivery_zones SET is_active = $1 WHERE id = $2", *b.IsActive, id) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminDeleteZone(w http.ResponseWriter, r *http.Request) {
-        shared.DB.Exec("UPDATE delivery_zones SET is_active = FALSE WHERE id = ?", r.PathValue("id"))
+        shared.DB.Exec("UPDATE delivery_zones SET is_active = FALSE WHERE id = $1", r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -183,16 +186,16 @@ func HandleAdminCreateTier(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.Code == "" || b.NameAr == "" { shared.WriteErr(w, 400, "الكود والاسم مطلوبان"); return }
         id := "tier-" + b.Code
-        shared.DB.Exec("INSERT INTO driver_tiers (id, code, name_ar, sort_order, color, is_active) VALUES (?, ?, ?, ?, ?, TRUE)", id, b.Code, b.NameAr, b.SortOrder, b.Color)
-        shared.DB.Exec("INSERT INTO tier_thresholds (id, tier_id) VALUES (?, ?)", "th-"+id, id)
+        shared.DB.Exec("INSERT INTO driver_tiers (id, code, name_ar, sort_order, color, is_active) VALUES ($1, $2, $3, $4, $5, TRUE)", id, b.Code, b.NameAr, b.SortOrder, b.Color)
+        shared.DB.Exec("INSERT INTO tier_thresholds (id, tier_id) VALUES ($1, $2)", "th-"+id, id)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 func HandleAdminUpdateTier(w http.ResponseWriter, r *http.Request) {
         id := r.PathValue("id")
         var b struct{ NameAr, Color string; SortOrder int; IsActive *bool }
         json.NewDecoder(r.Body).Decode(&b)
-        shared.DB.Exec("UPDATE driver_tiers SET name_ar = COALESCE(NULLIF(?, ''), name_ar), color = COALESCE(NULLIF(?, ''), color), sort_order = COALESCE(NULLIF(?, 0), sort_order) WHERE id = ?", b.NameAr, b.Color, b.SortOrder, id)
-        if b.IsActive != nil { shared.DB.Exec("UPDATE driver_tiers SET is_active = ? WHERE id = ?", *b.IsActive, id) }
+        shared.DB.Exec("UPDATE driver_tiers SET name_ar = COALESCE(NULLIF($1, ''), name_ar), color = COALESCE(NULLIF($2, ''), color), sort_order = COALESCE(NULLIF($3, 0), sort_order) WHERE id = $4", b.NameAr, b.Color, b.SortOrder, id)
+        if b.IsActive != nil { shared.DB.Exec("UPDATE driver_tiers SET is_active = $1 WHERE id = $2", *b.IsActive, id) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminUpdateTierThresholds(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +203,7 @@ func HandleAdminUpdateTierThresholds(w http.ResponseWriter, r *http.Request) {
         var b struct{ MinAcceptanceRate, MinCompletionRate, MinCustomerRating, MinOnTimeRate, MinShiftAdherence float64; MinLifetimeOrders int }
         json.NewDecoder(r.Body).Decode(&b)
         shared.DB.Exec(`INSERT INTO tier_thresholds (id, tier_id, min_acceptance_rate, min_completion_rate, min_customer_rating, min_on_time_rate, min_shift_adherence, min_lifetime_orders, updated_at)
-                 VALUES ('th-'+?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                 VALUES ('th-'+$1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
                  ON CONFLICT(id) DO UPDATE SET min_acceptance_rate=excluded.min_acceptance_rate, min_completion_rate=excluded.min_completion_rate,
                  min_customer_rating=excluded.min_customer_rating, min_on_time_rate=excluded.min_on_time_rate,
                  min_shift_adherence=excluded.min_shift_adherence, min_lifetime_orders=excluded.min_lifetime_orders, updated_at=CURRENT_TIMESTAMP`,
@@ -235,12 +238,12 @@ func HandleAdminUpdateTierPrice(w http.ResponseWriter, r *http.Request) {
         var b struct{ BaseFee, PerKmFee, MinFee, MaxFee, FreeAbove float64; EstimatedMinutes int; IsActive *bool }
         json.NewDecoder(r.Body).Decode(&b)
         shared.DB.Exec(`INSERT INTO tier_zone_prices (id, tier_id, zone_id, base_fee, per_km_fee, min_fee, max_fee, free_above, estimated_minutes, is_active, updated_at)
-                 VALUES ('tp-'||?||'-'||?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, CURRENT_TIMESTAMP)
+                 VALUES ('tp-'||$1||'-'||$2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, CURRENT_TIMESTAMP)
                  ON CONFLICT(tier_id, zone_id) DO UPDATE SET base_fee=excluded.base_fee, per_km_fee=excluded.per_km_fee,
                  min_fee=excluded.min_fee, max_fee=excluded.max_fee, free_above=excluded.free_above,
                  estimated_minutes=excluded.estimated_minutes, updated_at=CURRENT_TIMESTAMP`,
                 tierID, zoneID, tierID, zoneID, b.BaseFee, b.PerKmFee, b.MinFee, b.MaxFee, b.FreeAbove, b.EstimatedMinutes)
-        if b.IsActive != nil { shared.DB.Exec("UPDATE tier_zone_prices SET is_active = ? WHERE tier_id = ? AND zone_id = ?", *b.IsActive, tierID, zoneID) }
+        if b.IsActive != nil { shared.DB.Exec("UPDATE tier_zone_prices SET is_active = $1 WHERE tier_id = $2 AND zone_id = $3", *b.IsActive, tierID, zoneID) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -279,14 +282,14 @@ func HandleAdminCreateApplication(w http.ResponseWriter, r *http.Request) {
         var submittedBy interface{}
         if c != nil { submittedBy = c.UserID }
         shared.DB.Exec(`INSERT INTO driver_applications (id, name, phone, national_id, license_number, vehicle_type, vehicle_plate, address, emergency_phone, status, submitted_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`, id, b.Name, p, b.NationalID, b.LicenseNumber, b.VehicleType, b.VehiclePlate, b.Address, b.EmergencyPhone, submittedBy)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)`, id, b.Name, p, b.NationalID, b.LicenseNumber, b.VehicleType, b.VehiclePlate, b.Address, b.EmergencyPhone, submittedBy)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 func HandleAdminVerifyApplication(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r)
         appID := r.PathValue("id")
         var name, phone, natID, licNum, vt sql.NullString
-        shared.DB.QueryRow("SELECT name, phone, national_id, license_number, vehicle_type FROM driver_applications WHERE id = ? AND status = 'pending'", appID).Scan(&name, &phone, &natID, &licNum, &vt)
+        shared.DB.QueryRow("SELECT name, phone, national_id, license_number, vehicle_type FROM driver_applications WHERE id = $1 AND status = 'pending'", appID).Scan(&name, &phone, &natID, &licNum, &vt)
         if !name.Valid { shared.WriteErr(w, 404, "الطلب غير موجود أو تمت معالجته"); return }
         // Create driver account - default password = national_id
         hash, _ := shared.HashPassword(natID.String)
@@ -295,16 +298,16 @@ func HandleAdminVerifyApplication(w http.ResponseWriter, r *http.Request) {
         var starterID sql.NullString
         shared.DB.QueryRow("SELECT id FROM driver_tiers ORDER BY sort_order ASC LIMIT 1").Scan(&starterID)
         shared.DB.Exec(`INSERT INTO drivers (id, name, phone, password_hash, vehicle_type, license_number, national_id, tier_id, is_active, is_verified, must_change_password)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE)`, driverID, name.String, phone.String, hash, vt.String, licNum.String, natID.String, starterID.String)
-        shared.DB.Exec("INSERT INTO driver_stats (driver_id, period_starts) VALUES (?, CURRENT_TIMESTAMP)", driverID)
-        shared.DB.Exec("UPDATE driver_applications SET status = 'verified', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?, driver_id = ? WHERE id = ?", c.UserID, driverID, appID)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, TRUE, TRUE)`, driverID, name.String, phone.String, hash, vt.String, licNum.String, natID.String, starterID.String)
+        shared.DB.Exec("INSERT INTO driver_stats (driver_id, period_starts) VALUES ($1, CURRENT_TIMESTAMP)", driverID)
+        shared.DB.Exec("UPDATE driver_applications SET status = 'verified', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = $1, driver_id = $2 WHERE id = $3", c.UserID, driverID, appID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "driverId": driverID, "initialPassword": natID.String})
 }
 func HandleAdminRejectApplication(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r)
         var b struct{ Reason string }
         json.NewDecoder(r.Body).Decode(&b)
-        shared.DB.Exec("UPDATE driver_applications SET status = 'rejected', rejection_reason = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ?", b.Reason, c.UserID, r.PathValue("id"))
+        shared.DB.Exec("UPDATE driver_applications SET status = 'rejected', rejection_reason = $1, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = $2 WHERE id = $3", b.Reason, c.UserID, r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -342,7 +345,7 @@ func HandleAdminUpdateDriverStatus(w http.ResponseWriter, r *http.Request) {
         id := r.PathValue("id")
         var b struct{ IsActive *bool }
         json.NewDecoder(r.Body).Decode(&b)
-        if b.IsActive != nil { shared.DB.Exec("UPDATE drivers SET is_active = ? WHERE id = ?", *b.IsActive, id) }
+        if b.IsActive != nil { shared.DB.Exec("UPDATE drivers SET is_active = $1 WHERE id = $2", *b.IsActive, id) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminUpdateDriverTier(w http.ResponseWriter, r *http.Request) {
@@ -350,9 +353,9 @@ func HandleAdminUpdateDriverTier(w http.ResponseWriter, r *http.Request) {
         var b struct{ TierID string }
         json.NewDecoder(r.Body).Decode(&b)
         var oldTier sql.NullString
-        shared.DB.QueryRow("SELECT tier_id FROM drivers WHERE id = ?", id).Scan(&oldTier)
-        shared.DB.Exec("UPDATE drivers SET tier_id = ?, tier_evaluated_at = CURRENT_TIMESTAMP WHERE id = ?", b.TierID, id)
-        shared.DB.Exec("INSERT INTO driver_tier_history (id, driver_id, from_tier_id, to_tier_id, reason) VALUES (?, ?, ?, ?, ?)", uuid.New().String(), id, oldTier.String, b.TierID, "manual_admin")
+        shared.DB.QueryRow("SELECT tier_id FROM drivers WHERE id = $1", id).Scan(&oldTier)
+        shared.DB.Exec("UPDATE drivers SET tier_id = $1, tier_evaluated_at = CURRENT_TIMESTAMP WHERE id = $2", b.TierID, id)
+        shared.DB.Exec("INSERT INTO driver_tier_history (id, driver_id, from_tier_id, to_tier_id, reason) VALUES ($1, $2, $3, $4, $5)", uuid.New().String(), id, oldTier.String, b.TierID, "manual_admin")
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminGetDriverTierHistory(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +364,7 @@ func HandleAdminGetDriverTierHistory(w http.ResponseWriter, r *http.Request) {
                              FROM driver_tier_history h
                              LEFT JOIN driver_tiers ft ON ft.id = h.from_tier_id
                              LEFT JOIN driver_tiers tt ON tt.id = h.to_tier_id
-                             WHERE h.driver_id = ? ORDER BY h.evaluated_at DESC`, id)
+                             WHERE h.driver_id = $1 ORDER BY h.evaluated_at DESC`, id)
         var hist []map[string]interface{}
         for rows.Next() {
                 var hid, fromID, fromName, toID, toName, reason sql.NullString; var at sql.NullString
@@ -382,8 +385,8 @@ func HandleAdminCreateShift(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.ShiftDate == "" || b.StartTime == "" || b.EndTime == "" { shared.WriteErr(w, 400, "بيانات الوردية ناقصة"); return }
         sid := "shift-" + uuid.New().String()[:8]
-        shared.DB.Exec("INSERT INTO driver_shifts (id, driver_id, zone_id, shift_date, start_time, end_time, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')", sid, id, b.ZoneID, b.ShiftDate, b.StartTime, b.EndTime)
-        shared.DB.Exec("UPDATE driver_stats SET shift_scheduled = shift_scheduled + 1 WHERE driver_id = ?", id)
+        shared.DB.Exec("INSERT INTO driver_shifts (id, driver_id, zone_id, shift_date, start_time, end_time, status) VALUES ($1, $2, $3, $4, $5, $6, 'scheduled')", sid, id, b.ZoneID, b.ShiftDate, b.StartTime, b.EndTime)
+        shared.DB.Exec("UPDATE driver_stats SET shift_scheduled = shift_scheduled + 1 WHERE driver_id = $1", id)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": sid})
 }
 func HandleAdminGetShifts(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +394,7 @@ func HandleAdminGetShifts(w http.ResponseWriter, r *http.Request) {
         rows, _ := shared.DB.Query(`SELECT s.id, s.driver_id, s.zone_id, z.name_ar AS zone_name, s.shift_date, s.start_time, s.end_time,
                                     s.checked_in_at, s.checked_out_at, s.is_late, s.late_minutes, s.status, s.created_at
                              FROM driver_shifts s LEFT JOIN delivery_zones z ON z.id = s.zone_id
-                             WHERE s.driver_id = ? ORDER BY s.shift_date DESC, s.start_time DESC`, id)
+                             WHERE s.driver_id = $1 ORDER BY s.shift_date DESC, s.start_time DESC`, id)
         var shifts []map[string]interface{}
         for rows.Next() {
                 var sid, did, zid, zname, sdate, stime, etime, ct, cot, status, createdAt sql.NullString
@@ -432,7 +435,7 @@ func HandleAdminResolveTicket(w http.ResponseWriter, r *http.Request) {
         id := r.PathValue("id")
         var b struct{ AdminNotes string }
         json.NewDecoder(r.Body).Decode(&b)
-        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', admin_notes = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?", b.AdminNotes, id)
+        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', admin_notes = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2", b.AdminNotes, id)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminSendMessage(w http.ResponseWriter, r *http.Request) {
@@ -441,21 +444,21 @@ func HandleAdminSendMessage(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.Body == "" { shared.WriteErr(w, 400, "الرسالة فارغة"); return }
         mid := uuid.New().String()
-        shared.DB.Exec("INSERT INTO support_messages (id, ticket_id, sender, body) VALUES (?, ?, 'admin', ?)", mid, id, b.Body)
+        shared.DB.Exec("INSERT INTO support_messages (id, ticket_id, sender, body) VALUES ($1, $2, 'admin', $3)", mid, id, b.Body)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": mid})
 }
 func HandleAdminCancelOrder(w http.ResponseWriter, r *http.Request) {
         // Admin approves a driver's cancellation request
         ticketID := r.PathValue("id")
         var oid sql.NullString
-        shared.DB.QueryRow("SELECT order_id FROM support_tickets WHERE id = ? AND type = 'cancellation_request'", ticketID).Scan(&oid)
+        shared.DB.QueryRow("SELECT order_id FROM support_tickets WHERE id = $1 AND type = 'cancellation_request'", ticketID).Scan(&oid)
         if !oid.Valid { shared.WriteErr(w, 404, "تذكرة الإلغاء غير موجودة"); return }
-        shared.DB.Exec("UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?", oid.String)
-        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, admin_notes = 'تم إلغاء الطلب' WHERE id = ?", ticketID)
+        shared.DB.Exec("UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = $1", oid.String)
+        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, admin_notes = 'تم إلغاء الطلب' WHERE id = $1", ticketID)
         // Free the driver
         var did sql.NullString
-        shared.DB.QueryRow("SELECT driver_id FROM orders WHERE id = ?", oid.String).Scan(&did)
-        if did.Valid { shared.DB.Exec("UPDATE driver_stats SET cancelled_by_support = cancelled_by_support + 1 WHERE driver_id = ?", did.String) }
+        shared.DB.QueryRow("SELECT driver_id FROM orders WHERE id = $1", oid.String).Scan(&did)
+        if did.Valid { shared.DB.Exec("UPDATE driver_stats SET cancelled_by_support = cancelled_by_support + 1 WHERE driver_id = $1", did.String) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -466,7 +469,7 @@ func HandleAdminDashboardStats(w http.ResponseWriter, r *http.Request) {
         var todayRevenue, platformMargin sql.NullFloat64
         shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE").Scan(&todayOrders)
         shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE status IN ('accepted','preparing','ready','assigned','picked_up','on_the_way','delivering')").Scan(&activeOrders)
-        shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_online = TRUE AND location_updated_at > " + shared.NowMinusSeconds(60)).Scan(&onlineDrivers)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_online = TRUE AND location_updated_at > NOW() - INTERVAL '60 seconds'").Scan(&onlineDrivers)
         shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_active = TRUE").Scan(&totalDrivers)
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'").Scan(&openTickets)
         shared.DB.QueryRow("SELECT COUNT(*) FROM users WHERE is_admin = FALSE").Scan(&totalCustomers)
@@ -474,7 +477,7 @@ func HandleAdminDashboardStats(w http.ResponseWriter, r *http.Request) {
         shared.DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE status = 'delivered' AND DATE(created_at) = CURRENT_DATE").Scan(&todayRevenue)
         shared.DB.QueryRow("SELECT COALESCE(SUM(platform_margin), 0) FROM orders WHERE status = 'delivered' AND DATE(created_at) = CURRENT_DATE").Scan(&platformMargin)
         // Last 7 days
-        rows, _ := shared.DB.Query("SELECT DATE(created_at) AS d, COUNT(*) AS c, COALESCE(SUM(subtotal), 0) AS r FROM orders WHERE created_at >= " + shared.NowMinusDays(7) + " GROUP BY DATE(created_at) ORDER BY d ASC")
+        rows, _ := shared.DB.Query("SELECT DATE(created_at) AS d, COUNT(*) AS c, COALESCE(SUM(subtotal), 0) AS r FROM orders WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY d ASC")
         var daily []map[string]interface{}
         for rows.Next() {
                 var d sql.NullString; var cnt sql.NullInt64; var r sql.NullFloat64
@@ -577,7 +580,7 @@ func HandleAdminCreateRestaurant(w http.ResponseWriter, r *http.Request) {
         if b.NameAr == "" { shared.WriteErr(w, 400, "الاسم مطلوب"); return }
         id := "rest-" + uuid.New().String()[:8]
         shared.DB.Exec(`INSERT INTO restaurants (id, name, name_ar, description_ar, image_url, cuisines, lat, lng, zone_id, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_active, is_pro, rating, rating_count)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, 4.5, 0)`,
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, TRUE, $14, 4.5, 0)`,
                 id, b.Name, b.NameAr, b.DescriptionAr, b.ImageURL, b.Cuisines, b.Lat, b.Lng, b.ZoneID, b.DtMin, b.DtMax, b.DeliveryFee, b.MinOrder, b.IsPro)
         // Create merchant account for this restaurant with default phone/password
         var phone sql.NullString
@@ -587,7 +590,7 @@ func HandleAdminCreateRestaurant(w http.ResponseWriter, r *http.Request) {
         mID := "merch-" + id
         hash, _ := shared.HashPassword("123456")
         shared.DB.Exec(`INSERT INTO merchants (id, restaurant_id, name, phone, password_hash, is_active, must_change_password)
-                 VALUES (?, ?, ?, ?, ?, TRUE, TRUE)`, mID, id, b.NameAr + " Manager", newPhone, hash)
+                 VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)`, mID, id, b.NameAr + " Manager", newPhone, hash)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id, "merchantPhone": newPhone, "merchantPassword": "123456"})
 }
 func HandleAdminUpdateRestaurant(w http.ResponseWriter, r *http.Request) {
@@ -597,28 +600,28 @@ func HandleAdminUpdateRestaurant(w http.ResponseWriter, r *http.Request) {
         var b struct{ Name, NameAr, DescriptionAr, ImageURL, Cuisines, ZoneID string; Lat, Lng, DeliveryFee, MinOrder float64; DtMin, DtMax int; IsPro, IsActive *bool }
         json.NewDecoder(r.Body).Decode(&b)
         shared.DB.Exec(`UPDATE restaurants SET
-                 name = COALESCE(NULLIF(?, ''), name),
-                 name_ar = COALESCE(NULLIF(?, ''), name_ar),
-                 description_ar = COALESCE(NULLIF(?, ''), description_ar),
-                 image_url = COALESCE(NULLIF(?, ''), image_url),
-                 cuisines = COALESCE(NULLIF(?, ''), cuisines),
-                 lat = COALESCE(NULLIF(?, 0), lat),
-                 lng = COALESCE(NULLIF(?, 0), lng),
-                 zone_id = COALESCE(NULLIF(?, ''), zone_id),
-                 delivery_time_min = COALESCE(NULLIF(?, 0), delivery_time_min),
-                 delivery_time_max = COALESCE(NULLIF(?, 0), delivery_time_max),
-                 delivery_fee = COALESCE(NULLIF(?, 0), delivery_fee),
-                 min_order = COALESCE(NULLIF(?, 0), min_order)
-                 WHERE id = ?`,
+                 name = COALESCE(NULLIF($1, ''), name),
+                 name_ar = COALESCE(NULLIF($2, ''), name_ar),
+                 description_ar = COALESCE(NULLIF($3, ''), description_ar),
+                 image_url = COALESCE(NULLIF($4, ''), image_url),
+                 cuisines = COALESCE(NULLIF($5, ''), cuisines),
+                 lat = COALESCE(NULLIF($6, 0), lat),
+                 lng = COALESCE(NULLIF($7, 0), lng),
+                 zone_id = COALESCE(NULLIF($8, ''), zone_id),
+                 delivery_time_min = COALESCE(NULLIF($9, 0), delivery_time_min),
+                 delivery_time_max = COALESCE(NULLIF($10, 0), delivery_time_max),
+                 delivery_fee = COALESCE(NULLIF($11, 0), delivery_fee),
+                 min_order = COALESCE(NULLIF($12, 0), min_order)
+                 WHERE id = $13`,
                 b.Name, b.NameAr, b.DescriptionAr, b.ImageURL, b.Cuisines, b.Lat, b.Lng, b.ZoneID, b.DtMin, b.DtMax, b.DeliveryFee, b.MinOrder, id)
-        if b.IsPro != nil { shared.DB.Exec("UPDATE restaurants SET is_pro = ? WHERE id = ?", *b.IsPro, id) }
-        if b.IsActive != nil { shared.DB.Exec("UPDATE restaurants SET is_active = ? WHERE id = ?", *b.IsActive, id) }
+        if b.IsPro != nil { shared.DB.Exec("UPDATE restaurants SET is_pro = $1 WHERE id = $2", *b.IsPro, id) }
+        if b.IsActive != nil { shared.DB.Exec("UPDATE restaurants SET is_active = $1 WHERE id = $2", *b.IsActive, id) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminDeleteRestaurant(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r)
         if c == nil || !c.Admin { shared.WriteErr(w, 403, "غير مصرح"); return }
-        shared.DB.Exec("UPDATE restaurants SET is_active = FALSE WHERE id = ?", r.PathValue("id"))
+        shared.DB.Exec("UPDATE restaurants SET is_active = FALSE WHERE id = $1", r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -630,6 +633,6 @@ func HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         valid := map[string]bool{"new": true, "accepted": true, "preparing": true, "ready": true, "picked_up": true, "delivering": true, "delivered": true, "cancelled": true, "rejected": true}
         if !valid[b.Status] { shared.WriteErr(w, 400, "حالة غير صالحة"); return }
-        shared.DB.Exec("UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", b.Status, id)
+        shared.DB.Exec("UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", b.Status, id)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "status": b.Status})
 }

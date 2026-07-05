@@ -34,10 +34,10 @@ func HandleRegister(w http.ResponseWriter, r *http.Request) {
         if !shared.ValidPhone(p) { shared.WriteErr(w, 400, "رقم الهاتف يجب أن يكون 11 رقماً مصرياً (010/011/012/015)"); return }
         if len(b.Password) < 6 { shared.WriteErr(w, 400, "كلمة المرور 6 أحرف على الأقل"); return }
         var exist string
-        if shared.DB.QueryRow("SELECT id FROM users WHERE phone = ?", p).Scan(&exist) == nil { shared.WriteErr(w, 409, "رقم الهاتف مسجل"); return }
+        if shared.DB.QueryRow("SELECT id FROM users WHERE phone = $1", p).Scan(&exist) == nil { shared.WriteErr(w, 409, "رقم الهاتف مسجل"); return }
         hash, _ := shared.HashPassword(b.Password)
         uid := uuid.New().String()
-        shared.DB.Exec("INSERT INTO users (id, name, phone, email, password_hash) VALUES (?, ?, ?, ?, ?)", uid, b.Name, p, b.Email, hash)
+        shared.DB.Exec("INSERT INTO users (id, name, phone, email, password_hash) VALUES ($1, $2, $3, $4, $5)", uid, b.Name, p, b.Email, hash)
         token, _ := shared.GenerateJWT(uid, p, b.Name, false)
         shared.WriteJSON(w, 201, map[string]interface{}{"token": token, "user": map[string]interface{}{"id": uid, "name": b.Name, "phone": p, "email": b.Email, "loyaltyPoints": 0, "isAdmin": false}})
 }
@@ -51,7 +51,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
         var lp int
         var admin bool
         var ct time.Time
-        err := shared.DB.QueryRow("SELECT id, name, phone, email, password_hash, loyalty_points, is_admin, created_at FROM users WHERE phone = ?", p).Scan(&uid, &name, &ph, &email, &hash, &lp, &admin, &ct)
+        err := shared.DB.QueryRow("SELECT id, name, phone, email, password_hash, loyalty_points, is_admin, created_at FROM users WHERE phone = $1", p).Scan(&uid, &name, &ph, &email, &hash, &lp, &admin, &ct)
         if err != nil { shared.WriteErr(w, 401, "رقم الهاتف أو كلمة المرور غير صحيحة"); return }
         if !shared.CheckPassword(b.Password, hash) { shared.WriteErr(w, 401, "رقم الهاتف أو كلمة المرور غير صحيحة"); return }
         token, _ := shared.GenerateJWT(uid.String, ph.String, name.String, admin)
@@ -62,7 +62,7 @@ func HandleMe(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r)
         if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
         var name, ph, email sql.NullString; var lp int; var admin bool; var ct time.Time
-        shared.DB.QueryRow("SELECT name, phone, email, loyalty_points, is_admin, created_at FROM users WHERE id = ?", c.UserID).Scan(&name, &ph, &email, &lp, &admin, &ct)
+        shared.DB.QueryRow("SELECT name, phone, email, loyalty_points, is_admin, created_at FROM users WHERE id = $1", c.UserID).Scan(&name, &ph, &email, &lp, &admin, &ct)
         shared.WriteJSON(w, 200, map[string]interface{}{"id": c.UserID, "name": name.String, "phone": ph.String, "email": email.String, "loyaltyPoints": lp, "isAdmin": admin, "createdAt": ct.Format(time.RFC3339)})
 }
 
@@ -74,7 +74,7 @@ func HandleMenu(w http.ResponseWriter, r *http.Request) {
                 rows.Scan(&id, &name, &nameAr, &icon, &imgURL, &so)
                 cat := map[string]interface{}{"id": id, "name": name, "nameAr": nameAr, "icon": icon, "imageUrl": nil, "order": so, "items": []map[string]interface{}{}}
                 if imgURL.Valid { cat["imageUrl"] = imgURL.String }
-                itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories FROM menu_items WHERE category_id = ? AND is_available = TRUE ORDER BY price ASC", id)
+                itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories FROM menu_items WHERE category_id = $1 AND is_available = TRUE ORDER BY price ASC", id)
                 for itemRows.Next() {
                         var m map[string]interface{} = make(map[string]interface{})
                         var mid, mn, mna, md, mda, mi string; var mp float64; var miu sql.NullString; var mp2, ma bool; var mr float64; var mrc, mpt, mcal int
@@ -102,7 +102,7 @@ func HandleValidateCoupon(w http.ResponseWriter, r *http.Request) {
         var b struct{ Code string; Subtotal float64 }
         json.NewDecoder(r.Body).Decode(&b)
         var typ string; var val, min float64; var maxD sql.NullFloat64; var active bool; var ul sql.NullInt64; var uc int; var descAr string
-        err := shared.DB.QueryRow("SELECT type, value, min_order, max_discount, is_active, usage_limit, used_count, description_ar FROM coupons WHERE code = ? AND is_active = TRUE", b.Code).Scan(&typ, &val, &min, &maxD, &active, &ul, &uc, &descAr)
+        err := shared.DB.QueryRow("SELECT type, value, min_order, max_discount, is_active, usage_limit, used_count, description_ar FROM coupons WHERE code = $1 AND is_active = TRUE", b.Code).Scan(&typ, &val, &min, &maxD, &active, &ul, &uc, &descAr)
         if err != nil { shared.WriteErr(w, 404, "كوبون غير صالح"); return }
         if ul.Valid && int64(uc) >= ul.Int64 { shared.WriteErr(w, 400, "تم استخدام الكوبون للحد الأقصى"); return }
         if b.Subtotal < min { shared.WriteErr(w, 400, "الحد الأدنى "+strconv.FormatFloat(min, 'f', 2, 64)+" ج.م"); return }
@@ -124,7 +124,7 @@ func HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
         var restID string
         for _, it := range b.Items {
                 var id, na string; var pr float64; var rid sql.NullString
-                if shared.DB.QueryRow("SELECT id, name_ar, price, restaurant_id FROM menu_items WHERE id = ?", it.MenuItemID).Scan(&id, &na, &pr, &rid) == nil {
+                if shared.DB.QueryRow("SELECT id, name_ar, price, restaurant_id FROM menu_items WHERE id = $1", it.MenuItemID).Scan(&id, &na, &pr, &rid) == nil {
                         items = append(items, itemData{id, na, pr, it.Quantity, rid.String})
                         sub += pr * float64(it.Quantity)
                         if restID == "" && rid.Valid { restID = rid.String }
@@ -140,11 +140,11 @@ func HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
         var disc float64; var couponCode string
         if b.CouponCode != "" {
                 var typ string; var val, min float64; var maxD sql.NullFloat64; var ul sql.NullInt64; var uc int; var cid string
-                if shared.DB.QueryRow("SELECT id, type, value, min_order, max_discount, usage_limit, used_count FROM coupons WHERE code = ? AND is_active = TRUE", b.CouponCode).Scan(&cid, &typ, &val, &min, &maxD, &ul, &uc) == nil {
+                if shared.DB.QueryRow("SELECT id, type, value, min_order, max_discount, usage_limit, used_count FROM coupons WHERE code = $1 AND is_active = TRUE", b.CouponCode).Scan(&cid, &typ, &val, &min, &maxD, &ul, &uc) == nil {
                         if sub >= min {
                                 if typ == "percentage" { disc = sub * val / 100; if maxD.Valid && disc > maxD.Float64 { disc = maxD.Float64 } } else { disc = val; if disc > sub { disc = sub } }
                                 couponCode = b.CouponCode
-                                shared.DB.Exec("UPDATE coupons SET used_count = used_count + 1 WHERE id = ?", cid)
+                                shared.DB.Exec("UPDATE coupons SET used_count = used_count + 1 WHERE id = $1", cid)
                         }
                 }
         }
@@ -158,16 +158,16 @@ func HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
         var orderZoneID string
         if restID != "" {
                 var zid sql.NullString
-                shared.DB.QueryRow("SELECT zone_id FROM restaurants WHERE id = ?", restID).Scan(&zid)
+                shared.DB.QueryRow("SELECT zone_id FROM restaurants WHERE id = $1", restID).Scan(&zid)
                 if zid.Valid { orderZoneID = zid.String }
         }
         if orderZoneID == "" { orderZoneID = shared.FindZoneByLatLng(b.LocationLat, b.LocationLng) }
         // Restaurant auto-accepts order (mandatory) → status = 'accepted' → trigger dispatch
         status := "accepted"
-        shared.DB.Exec("INSERT INTO orders (id, order_number, user_id, restaurant_id, customer_name, phone, location_lat, location_lng, location_url, location_address, subtotal, delivery_fee, discount, coupon_code, total, payment_method, status, zone_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        shared.DB.Exec("INSERT INTO orders (id, order_number, user_id, restaurant_id, customer_name, phone, location_lat, location_lng, location_url, location_address, subtotal, delivery_fee, discount, coupon_code, total, payment_method, status, zone_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)",
                 oid, onum, uid, restID, b.CustomerName, p, b.LocationLat, b.LocationLng, locURL, b.LocationAddress, sub, delFee, disc, couponCode, total, b.PaymentMethod, status, orderZoneID)
-        for _, it := range items { shared.DB.Exec("INSERT INTO order_items (id, order_id, menu_item_id, name, price, quantity) VALUES (?, ?, ?, ?, ?, ?)", uuid.New().String(), oid, it.id, it.nameAr, it.price, it.qty) }
-        if c := shared.GetUser(r); c != nil { pts := int(total / 10); if pts > 0 { shared.DB.Exec("UPDATE users SET loyalty_points = loyalty_points + ? WHERE id = ?", pts, c.UserID) } }
+        for _, it := range items { shared.DB.Exec("INSERT INTO order_items (id, order_id, menu_item_id, name, price, quantity) VALUES ($1, $2, $3, $4, $5, $6)", uuid.New().String(), oid, it.id, it.nameAr, it.price, it.qty) }
+        if c := shared.GetUser(r); c != nil { pts := int(total / 10); if pts > 0 { shared.DB.Exec("UPDATE users SET loyalty_points = loyalty_points + $1 WHERE id = $2", pts, c.UserID) } }
         // Restaurant auto-accepted → dispatch to drivers
         go dispatch.DispatchOrder(oid)
         shared.WriteJSON(w, 201, map[string]interface{}{"order": map[string]interface{}{"id": oid, "orderNumber": onum, "status": status, "total": total}})
@@ -186,7 +186,7 @@ func HandleGetOrders(w http.ResponseWriter, r *http.Request) {
                 var id, on, cn, ph, pm, st string; var ll, lln sql.NullFloat64; var lu, la, cc sql.NullString; var sub, df, dc, tot float64; var ct time.Time
                 rows.Scan(&id, &on, &cn, &ph, &ll, &lln, &lu, &la, &sub, &df, &dc, &cc, &tot, &pm, &st, &ct)
                 o := map[string]interface{}{"id": id, "orderNumber": on, "customerName": cn, "phone": ph, "locationLat": ll.Float64, "locationLng": lln.Float64, "locationUrl": lu.String, "locationAddress": la.String, "subtotal": sub, "deliveryFee": df, "discount": dc, "couponCode": cc.String, "total": tot, "paymentMethod": pm, "status": st, "createdAt": ct.Format(time.RFC3339), "items": []map[string]interface{}{}}
-                itemRows, _ := shared.DB.Query("SELECT id, name, price, quantity FROM order_items WHERE order_id = ?", id)
+                itemRows, _ := shared.DB.Query("SELECT id, name, price, quantity FROM order_items WHERE order_id = $1", id)
                 for itemRows.Next() {
                         var iid, in string; var ip float64; var iq int
                         itemRows.Scan(&iid, &in, &ip, &iq)
@@ -203,10 +203,10 @@ func HandleTrackOrder(w http.ResponseWriter, r *http.Request) {
         on := r.URL.Query().Get("number")
         if on == "" { shared.WriteErr(w, 400, "رقم الطلب مطلوب"); return }
         var id, cn, ph, pm, st string; var ll, lln sql.NullFloat64; var lu, la, cc sql.NullString; var sub, df, dc, tot float64; var ct time.Time
-        err := shared.DB.QueryRow("SELECT id, order_number, customer_name, phone, location_lat, location_lng, location_url, location_address, subtotal, delivery_fee, discount, coupon_code, total, payment_method, status, created_at FROM orders WHERE order_number = ?", on).Scan(&id, &on, &cn, &ph, &ll, &lln, &lu, &la, &sub, &df, &dc, &cc, &tot, &pm, &st, &ct)
+        err := shared.DB.QueryRow("SELECT id, order_number, customer_name, phone, location_lat, location_lng, location_url, location_address, subtotal, delivery_fee, discount, coupon_code, total, payment_method, status, created_at FROM orders WHERE order_number = $1", on).Scan(&id, &on, &cn, &ph, &ll, &lln, &lu, &la, &sub, &df, &dc, &cc, &tot, &pm, &st, &ct)
         if err != nil { shared.WriteErr(w, 404, "الطلب غير موجود"); return }
         var items []map[string]interface{}
-        itemRows, _ := shared.DB.Query("SELECT id, name, price, quantity FROM order_items WHERE order_id = ?", id)
+        itemRows, _ := shared.DB.Query("SELECT id, name, price, quantity FROM order_items WHERE order_id = $1", id)
         for itemRows.Next() { var iid, in string; var ip float64; var iq int; itemRows.Scan(&iid, &in, &ip, &iq); items = append(items, map[string]interface{}{"id": iid, "name": in, "price": ip, "quantity": iq}) }
         itemRows.Close()
         shared.WriteJSON(w, 200, map[string]interface{}{"order": map[string]interface{}{"id": id, "orderNumber": on, "customerName": cn, "phone": ph, "locationLat": ll.Float64, "locationLng": lln.Float64, "locationUrl": lu.String, "locationAddress": la.String, "subtotal": sub, "deliveryFee": df, "discount": dc, "couponCode": cc.String, "total": tot, "paymentMethod": pm, "status": st, "createdAt": ct.Format(time.RFC3339), "items": items}})
@@ -214,7 +214,7 @@ func HandleTrackOrder(w http.ResponseWriter, r *http.Request) {
 
 func HandleGetAddresses(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        rows, _ := shared.DB.Query("SELECT id, label, lat, lng, location_url, address_text, is_default FROM addresses WHERE user_id = ? ORDER BY is_default DESC, created_at DESC", c.UserID)
+        rows, _ := shared.DB.Query("SELECT id, label, lat, lng, location_url, address_text, is_default FROM addresses WHERE user_id = $1 ORDER BY is_default DESC, created_at DESC", c.UserID)
         var addrs []map[string]interface{}
         for rows.Next() {
                 var id, label string; var lat, lng sql.NullFloat64; var lu, at sql.NullString; var def bool
@@ -231,19 +231,19 @@ func HandleSaveAddress(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.Label == "" { shared.WriteErr(w, 400, "الاسم مطلوب"); return }
         id := uuid.New().String()
-        shared.DB.Exec("INSERT INTO addresses (id, user_id, label, lat, lng, location_url, address_text, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", id, c.UserID, b.Label, b.Lat, b.Lng, b.LocationURL, b.AddressText, b.IsDefault)
+        shared.DB.Exec("INSERT INTO addresses (id, user_id, label, lat, lng, location_url, address_text, is_default) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", id, c.UserID, b.Label, b.Lat, b.Lng, b.LocationURL, b.AddressText, b.IsDefault)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 
 func HandleDeleteAddress(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        shared.DB.Exec("DELETE FROM addresses WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
+        shared.DB.Exec("DELETE FROM addresses WHERE id = $1 AND user_id = $2", r.PathValue("id"), c.UserID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
 func HandleGetCards(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        rows, _ := shared.DB.Query("SELECT id, brand, last4, exp_month, exp_year, cardholder_name, is_default FROM saved_cards WHERE user_id = ? AND is_active = TRUE ORDER BY is_default DESC, created_at DESC", c.UserID)
+        rows, _ := shared.DB.Query("SELECT id, brand, last4, exp_month, exp_year, cardholder_name, is_default FROM saved_cards WHERE user_id = $1 AND is_active = TRUE ORDER BY is_default DESC, created_at DESC", c.UserID)
         var cards []map[string]interface{}
         for rows.Next() {
                 var id, brand, last4 string; var em, ey int; var cn sql.NullString; var def bool
@@ -259,22 +259,22 @@ func HandleSaveCard(w http.ResponseWriter, r *http.Request) {
         var b struct{ PaymobToken, Brand, Last4, CardholderName string; ExpMonth, ExpYear int; IsDefault bool }
         json.NewDecoder(r.Body).Decode(&b)
         if b.PaymobToken == "" || b.Last4 == "" { shared.WriteErr(w, 400, "بيانات البطاقة ناقصة"); return }
-        if b.IsDefault { shared.DB.Exec("UPDATE saved_cards SET is_default = FALSE WHERE user_id = ?", c.UserID) }
+        if b.IsDefault { shared.DB.Exec("UPDATE saved_cards SET is_default = FALSE WHERE user_id = $1", c.UserID) }
         id := uuid.New().String()
-        shared.DB.Exec("INSERT INTO saved_cards (id, user_id, paymob_token, brand, last4, exp_month, exp_year, cardholder_name, is_default, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", id, c.UserID, b.PaymobToken, b.Brand, b.Last4, b.ExpMonth, b.ExpYear, b.CardholderName, b.IsDefault)
+        shared.DB.Exec("INSERT INTO saved_cards (id, user_id, paymob_token, brand, last4, exp_month, exp_year, cardholder_name, is_default, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)", id, c.UserID, b.PaymobToken, b.Brand, b.Last4, b.ExpMonth, b.ExpYear, b.CardholderName, b.IsDefault)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 
 func HandleDeleteCard(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        shared.DB.Exec("UPDATE saved_cards SET is_active = FALSE WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
+        shared.DB.Exec("UPDATE saved_cards SET is_active = FALSE WHERE id = $1 AND user_id = $2", r.PathValue("id"), c.UserID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
 func HandleSetDefaultCard(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        shared.DB.Exec("UPDATE saved_cards SET is_default = FALSE WHERE user_id = ?", c.UserID)
-        shared.DB.Exec("UPDATE saved_cards SET is_default = TRUE WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
+        shared.DB.Exec("UPDATE saved_cards SET is_default = FALSE WHERE user_id = $1", c.UserID)
+        shared.DB.Exec("UPDATE saved_cards SET is_default = TRUE WHERE id = $1 AND user_id = $2", r.PathValue("id"), c.UserID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -315,12 +315,12 @@ func HandleGetRestaurant(w http.ResponseWriter, r *http.Request) {
         var rc, dtMin, dtMax int
         var dFee, minOrd float64
         var isPro, isActive bool
-        err := shared.DB.QueryRow("SELECT name, name_ar, description_ar, image_url, cover_url, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_pro, is_active, cuisines FROM restaurants WHERE id = ?", id).
+        err := shared.DB.QueryRow("SELECT name, name_ar, description_ar, image_url, cover_url, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_pro, is_active, cuisines FROM restaurants WHERE id = $1", id).
                 Scan(&name, &nameAr, &descAr, &imgURL, &coverURL, &rating, &rc, &dtMin, &dtMax, &dFee, &minOrd, &isPro, &isActive, &cuisines)
         if err != nil { shared.WriteErr(w, 404, "المطعم غير موجود"); return }
 
         // Get menu items
-        itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id FROM menu_items WHERE restaurant_id = ? AND is_available = TRUE ORDER BY is_popular DESC, price ASC", id)
+        itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id FROM menu_items WHERE restaurant_id = $1 AND is_available = TRUE ORDER BY is_popular DESC, price ASC", id)
         type MenuItem struct {
                 ID string `json:"id"`
                 Name string `json:"name"`

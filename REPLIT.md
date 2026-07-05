@@ -1,4 +1,4 @@
-# 🚀 AVEX — دليل النشر على Replit
+# AVEX — دليل النشر على Replit
 
 منصة AVEX تتكون من **6 أجزاء** منفصلة، كل واحد يُنشر على Replit مستقل:
 
@@ -40,30 +40,31 @@ localPort = 3000  # نفس المنفذ
 externalPort = 80
 ```
 
-### الخطوة 3: تشغيل
+### الخطوة 3: إعداد قاعدة البيانات (PostgreSQL)
+
+الباك إند يتعامل مع **PostgreSQL فقط**. تحتاج لإنشاء قاعدة بيانات PostgreSQL:
+
+#### الخيارات المجانية:
+- **Neon** (neon.tech) — PostgreSQL مجاني، الأسرع للإعداد
+- **Supabase** (supabase.com) — PostgreSQL مجاني مع لوحة تحكم
+- **Replit Database** — إذا كان Replit يدعم PostgreSQL في خطتك
+
+بعد إنشاء قاعدة البيانات، احصل على connection string (يبدأ بـ `postgres://...`).
+
+### الخطوة 4: إضافة Secrets على Backend Replit
+في الـ Backend Replit، اذهب لـ **Tools → Secrets** وأضف:
+- `DATABASE_URL` = رابط PostgreSQL (مثال: `postgres://user:pass@host:5432/dbname?sslmode=require`)
+- `JWT_SECRET` = أي نص عشوائي (مثال: `my-secret-key-123`)
+
+### الخطوة 5: إضافة BACKEND_URL على تطبيقات الـ Next.js
+في كل تطبيق Next.js Replit (عدا الـ Backend)، أضف Secret:
+- `BACKEND_URL` = رابط الـ Backend Replit (مثال: `https://avex-backend.yourname.repl.co`)
+
+### الخطوة 6: تشغيل
 اضغط زر **Run** — السكربت هيقوم بـ:
 1. تثبيت الـ dependencies
 2. بناء التطبيق
 3. تشغيله على المنفذ المحدد
-
----
-
-## 🔗 ربط التطبيقات ببعضها
-
-كل تطبيق Next.js بيستخدم **proxy route** على `/api/*` بيوصل للـ backend.
-
-في ملف `apps/<app>/src/app/api/[...path]/route.ts`:
-```typescript
-const API_BASE = 'http://localhost:8080'
-```
-
-**للإنتاج على Replit**: غيّر `API_BASE` لرابط الـ Backend Replit:
-```typescript
-const API_BASE = process.env.BACKEND_URL || 'http://localhost:8080'
-```
-
-في كل Replit (عدا الـ Backend)، أضف Secret:
-- `BACKEND_URL` = `https://<backend-replit-name>.<your-username>.repl.co`
 
 ---
 
@@ -79,42 +80,13 @@ const API_BASE = process.env.BACKEND_URL || 'http://localhost:8080'
 
 ---
 
-## 🗄️ قاعدة البيانات
-
-الباك إند يدعم **SQLite** و **PostgreSQL** — يتم الاختيار تلقائياً عبر `DB_DRIVER`.
-
-### SQLite (تطوير محلي)
-```bash
-DB_DRIVER=sqlite          # أو اتركه فارغاً
-DB_PATH=./avex.db         # افتراضي
-```
-القاعدة تُنشأ تلقائياً + seed عند أول تشغيل.
-
-### PostgreSQL (إنتاج على Replit)
-1. على Replit Backend، أضف Secrets:
-   - `DB_DRIVER` = `postgres`
-   - `DATABASE_URL` = رابط PostgreSQL (مثال: `postgres://user:pass@host:5432/avex?sslmode=require`)
-2. يمكنك استخدام:
-   - **Replit Postgres** (مدمج في Replit — اضغط "Database" في الـ sidebar)
-   - **Neon** (postgres مجاني: neon.tech)
-   - **Supabase** (postgres مجاني: supabase.com)
-   - أي PostgreSQL provider آخر
-
-الباك إند:
-- يقرأ `DB_DRIVER` و `DATABASE_URL`
-- يستخدم `pgx` driver للـ PostgreSQL
-- يبدّل اللهجة تلقائياً (date functions, GROUP_CONCAT→STRING_AGG, boolean TRUE/FALSE)
-- الـ schema + seed يشتغل على الاتنين بدون تعديل
-
----
-
 ## 🛠️ البنية المعمارية
 
 ```
 backend/
 ├── cmd/server/main.go              ← نقطة الدخول
 └── internal/
-    ├── shared/                     ← DB, JWT, middlewares, helpers
+    ├── shared/                     ← DB (PostgreSQL فقط), JWT, middlewares, helpers
     ├── dispatch/                   ← خوارزميات التوزيع والتسعير
     ├── customer/                   ← 13 مسار
     ├── driver/                     ← 21 مسار
@@ -135,6 +107,8 @@ apps/
 ## ❓ استكشاف الأخطاء
 
 **Go not found على Replit**: تأكد إن `replit.nix` فيه `pkgs.go`.
+
+**DATABASE_URL not set**: الباك إند يرفض التشغيل بدون `DATABASE_URL`. أضفه كـ Secret.
 
 **Build fails**: شغّل `cd backend && go build ./cmd/server` يدوياً وشوف الخطأ.
 

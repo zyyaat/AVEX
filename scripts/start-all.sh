@@ -1,6 +1,15 @@
 #!/bin/bash
-# AVEX - start all apps (backend + customer + driver + admin + support + merchant)
+# AVEX - start all apps locally (backend + customer + driver + admin + support + merchant)
+# REQUIRES: DATABASE_URL env var (PostgreSQL connection string)
 set -e
+
+# Check DATABASE_URL
+if [ -z "$DATABASE_URL" ]; then
+  echo "❌ DATABASE_URL is required!"
+  echo "   Example: export DATABASE_URL='postgres://user:pass@localhost:5432/avex?sslmode=disable'"
+  exit 1
+fi
+
 cd /home/z/my-project/backend
 pkill -f avex-api 2>/dev/null || true
 sleep 1
@@ -35,7 +44,6 @@ echo "   Merchant: http://localhost:3004"
 echo ""
 echo "📋 Demo accounts:"
 echo "   Admin:    01000000000 / admin123"
-echo "   Customer: 01012345678 / (any) — register at customer app"
 echo "   Driver:   01100000001 / 123456  (or 01100000002)"
 echo "   Support:  01500000001 / 123456  (or 01500000002)"
 echo "   Merchant: 01200000001 / 123456  (or 01200000002-005)"

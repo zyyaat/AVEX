@@ -9,6 +9,9 @@
 #
 # Each app should be deployed on a SEPARATE Replit (one Replit per app).
 # See REPLIT.md for full deployment guide.
+#
+# REQUIRED: Set DATABASE_URL as a Replit Secret (PostgreSQL connection string)
+# Example: postgres://user:pass@host:5432/dbname?sslmode=require
 
 run = "bash scripts/replit-backend.sh"
 hidden = [".config", "bun.lock"]
@@ -28,8 +31,6 @@ externalPort = 80
 
 [env]
 PORT = "8080"
-DB_DRIVER = "postgres"
 JWT_SECRET = "avex-production-secret-change-me"
 GOFLAGS = "-buildvcs=false"
-# DATABASE_URL should be set as a Replit Secret
-# Example: postgres://user:pass@host:5432/dbname?sslmode=require
+# DATABASE_URL must be set as a Replit Secret (PostgreSQL connection string)

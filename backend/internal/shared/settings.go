@@ -4,7 +4,7 @@ import "strconv"
 
 func GetSetting(key, def string) string {
 	var v string
-	if DB.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&v) != nil {
+	if DB.QueryRow("SELECT value FROM settings WHERE key = $1", key).Scan(&v) != nil {
 		return def
 	}
 	if v == "" {

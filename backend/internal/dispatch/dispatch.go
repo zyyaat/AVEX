@@ -14,11 +14,11 @@ import (
 func DispatchOrder(orderID string) {
         var restID, zoneID sql.NullString
         var rlat, rlng sql.NullFloat64
-        shared.DB.QueryRow("SELECT restaurant_id, zone_id FROM orders WHERE id = ?", orderID).Scan(&restID, &zoneID)
+        shared.DB.QueryRow("SELECT restaurant_id, zone_id FROM orders WHERE id = $1", orderID).Scan(&restID, &zoneID)
         if !restID.Valid {
                 return
         }
-        shared.DB.QueryRow("SELECT lat, lng FROM restaurants WHERE id = ?", restID.String).Scan(&rlat, &rlng)
+        shared.DB.QueryRow("SELECT lat, lng FROM restaurants WHERE id = $1", restID.String).Scan(&rlat, &rlng)
         if !rlat.Valid {
                 return
         }
@@ -26,7 +26,7 @@ func DispatchOrder(orderID string) {
                 z := shared.FindZoneByLatLng(rlat.Float64, rlng.Float64)
                 if z != "" {
                         zoneID.String = z
-                        shared.DB.Exec("UPDATE orders SET zone_id = ? WHERE id = ?", z, orderID)
+                        shared.DB.Exec("UPDATE orders SET zone_id = $1 WHERE id = $2", z, orderID)
                 }
         }
 
@@ -39,10 +39,10 @@ func DispatchOrder(orderID string) {
                                       LEFT JOIN driver_tiers dt ON dt.id = d.tier_id
                                       WHERE d.is_online = TRUE AND d.is_active = TRUE AND d.is_verified = TRUE
                                         AND d.tier_id IS NOT NULL
-                                        AND d.location_updated_at > ` + shared.NowMinusSeconds(staleSec) + `
-                                        AND d.id NOT IN (SELECT driver_id FROM dispatch_offers WHERE order_id = ? AND status = 'accepted')
-                                        AND d.id NOT IN (SELECT driver_id FROM orders WHERE id != ? AND status IN ('assigned','picked_up','on_the_way','delivering'))`,
-                orderID, orderID)
+                                        AND d.location_updated_at > NOW() - make_interval(secs => $1)
+                                        AND d.id NOT IN (SELECT driver_id FROM dispatch_offers WHERE order_id = $2 AND status = 'accepted')
+                                        AND d.id NOT IN (SELECT driver_id FROM orders WHERE id != $3 AND status IN ('assigned','picked_up','on_the_way','delivering'))`,
+                staleSec, orderID, orderID)
         if err != nil {
                 return
         }
@@ -115,10 +115,10 @@ func DispatchOrder(orderID string) {
         for _, s := range list {
                 var tierID sql.NullString
                 var autoAccept bool
-                shared.DB.QueryRow("SELECT tier_id, auto_accept FROM drivers WHERE id = ?", s.id).Scan(&tierID, &autoAccept)
+                shared.DB.QueryRow("SELECT tier_id, auto_accept FROM drivers WHERE id = $1", s.id).Scan(&tierID, &autoAccept)
                 offerID := uuid.New().String()
                 shared.DB.Exec(`INSERT INTO dispatch_offers (id, order_id, driver_id, offered_at, status, expires_at, distance_m)
-                                VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'pending', ?, ?)`,
+                                VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'pending', $4, $5)`,
                         offerID, orderID, s.id, expiresAt, int(s.dist))
                 if autoAccept {
                         AcceptOfferInternal(offerID, s.id, orderID)
@@ -129,14 +129,14 @@ func DispatchOrder(orderID string) {
 
 // AcceptOfferInternal marks an offer accepted, expires other offers, computes fees.
 func AcceptOfferInternal(offerID, driverID, orderID string) bool {
-        shared.DB.Exec("UPDATE dispatch_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'", offerID)
-        shared.DB.Exec("UPDATE dispatch_offers SET status = 'expired', responded_at = CURRENT_TIMESTAMP WHERE order_id = ? AND id != ? AND status = 'pending'", orderID, offerID)
+        shared.DB.Exec("UPDATE dispatch_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'pending'", offerID)
+        shared.DB.Exec("UPDATE dispatch_offers SET status = 'expired', responded_at = CURRENT_TIMESTAMP WHERE order_id = $1 AND id != $2 AND status = 'pending'", orderID, offerID)
 
         var restID, zoneID sql.NullString
         var cLat, cLng, rLat, rLng sql.NullFloat64
         var dispatchDist sql.NullInt64
-        shared.DB.QueryRow("SELECT restaurant_id, zone_id, location_lat, location_lng, dispatch_distance_m FROM orders WHERE id = ?", orderID).Scan(&restID, &zoneID, &cLat, &cLng, &dispatchDist)
-        shared.DB.QueryRow("SELECT lat, lng FROM restaurants WHERE id = ?", restID.String).Scan(&rLat, &rLng)
+        shared.DB.QueryRow("SELECT restaurant_id, zone_id, location_lat, location_lng, dispatch_distance_m FROM orders WHERE id = $1", orderID).Scan(&restID, &zoneID, &cLat, &cLng, &dispatchDist)
+        shared.DB.QueryRow("SELECT lat, lng FROM restaurants WHERE id = $1", restID.String).Scan(&rLat, &rLng)
 
         deliveryDist := 0.0
         if rLat.Valid && cLat.Valid {
@@ -144,7 +144,7 @@ func AcceptOfferInternal(offerID, driverID, orderID string) bool {
         }
 
         var tierID sql.NullString
-        shared.DB.QueryRow("SELECT tier_id FROM drivers WHERE id = ?", driverID).Scan(&tierID)
+        shared.DB.QueryRow("SELECT tier_id FROM drivers WHERE id = $1", driverID).Scan(&tierID)
         zid := zoneID.String
         if zid == "" {
                 zid = shared.FindZoneByLatLng(rLat.Float64, rLng.Float64)
@@ -152,7 +152,7 @@ func AcceptOfferInternal(offerID, driverID, orderID string) bool {
         driverFee := ComputeDriverFee(tierID.String, zid, deliveryDist)
 
         var custFee sql.NullFloat64
-        shared.DB.QueryRow("SELECT delivery_fee FROM orders WHERE id = ?", orderID).Scan(&custFee)
+        shared.DB.QueryRow("SELECT delivery_fee FROM orders WHERE id = $1", orderID).Scan(&custFee)
         margin := 0.0
         if custFee.Valid {
                 margin = custFee.Float64 - driverFee
@@ -161,8 +161,8 @@ func AcceptOfferInternal(offerID, driverID, orderID string) bool {
                 margin = 0
         }
 
-        shared.DB.Exec(`UPDATE orders SET driver_id = ?, status = 'assigned', dispatch_distance_m = ?, delivery_distance_m = ?, driver_fee = ?, platform_margin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        shared.DB.Exec(`UPDATE orders SET driver_id = $1, status = 'assigned', dispatch_distance_m = $2, delivery_distance_m = $3, driver_fee = $4, platform_margin = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6`,
                 driverID, int(dispatchDist.Int64), int(deliveryDist), driverFee, margin, orderID)
-        shared.DB.Exec("UPDATE driver_stats SET accepted_orders = accepted_orders + 1, total_orders = total_orders + 1, updated_at = CURRENT_TIMESTAMP WHERE driver_id = ?", driverID)
+        shared.DB.Exec("UPDATE driver_stats SET accepted_orders = accepted_orders + 1, total_orders = total_orders + 1, updated_at = CURRENT_TIMESTAMP WHERE driver_id = $1", driverID)
         return true
 }

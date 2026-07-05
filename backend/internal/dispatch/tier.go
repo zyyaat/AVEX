@@ -13,12 +13,12 @@ import (
 func EvaluateDriverTier(driverID string) string {
 	var currentTier sql.NullString
 	var lifetime int
-	shared.DB.QueryRow("SELECT tier_id, (SELECT COUNT(*) FROM orders WHERE driver_id = ? AND status = 'delivered') FROM drivers WHERE id = ?", driverID, driverID).Scan(&currentTier, &lifetime)
+	shared.DB.QueryRow("SELECT tier_id, (SELECT COUNT(*) FROM orders WHERE driver_id = $1 AND status = 'delivered') FROM drivers WHERE id = $2", driverID, driverID).Scan(&currentTier, &lifetime)
 
 	var accepted, rejected, completed, onTime, ratingSum float64
 	var ratingCount, shiftScheduled, shiftAttended int
 	shared.DB.QueryRow(`SELECT accepted_orders, rejected_orders, completed_orders, on_time_count, rating_sum, rating_count, shift_scheduled, shift_attended
-	                    FROM driver_stats WHERE driver_id = ?`, driverID).Scan(&accepted, &rejected, &completed, &onTime, &ratingSum, &ratingCount, &shiftScheduled, &shiftAttended)
+	                    FROM driver_stats WHERE driver_id = $1`, driverID).Scan(&accepted, &rejected, &completed, &onTime, &ratingSum, &ratingCount, &shiftScheduled, &shiftAttended)
 
 	acceptanceRate := 0.0
 	if accepted+rejected > 0 {
@@ -66,7 +66,7 @@ func EvaluateDriverTier(driverID string) string {
 		var acc, comp, rating, onT, shift sql.NullFloat64
 		var life sql.NullInt64
 		shared.DB.QueryRow(`SELECT min_acceptance_rate, min_completion_rate, min_customer_rating, min_on_time_rate, min_shift_adherence, min_lifetime_orders
-		                    FROM tier_thresholds WHERE tier_id = ?`, t.id).Scan(&acc, &comp, &rating, &onT, &shift, &life)
+		                    FROM tier_thresholds WHERE tier_id = $1`, t.id).Scan(&acc, &comp, &rating, &onT, &shift, &life)
 		meets := true
 		if acc.Valid && acceptanceRate < acc.Float64 {
 			meets = false
@@ -93,8 +93,8 @@ func EvaluateDriverTier(driverID string) string {
 	}
 
 	if !currentTier.Valid || currentTier.String != newTier {
-		shared.DB.Exec("UPDATE drivers SET tier_id = ?, tier_evaluated_at = CURRENT_TIMESTAMP WHERE id = ?", newTier, driverID)
-		shared.DB.Exec("INSERT INTO driver_tier_history (id, driver_id, from_tier_id, to_tier_id, reason) VALUES (?, ?, ?, ?, ?)",
+		shared.DB.Exec("UPDATE drivers SET tier_id = $1, tier_evaluated_at = CURRENT_TIMESTAMP WHERE id = $2", newTier, driverID)
+		shared.DB.Exec("INSERT INTO driver_tier_history (id, driver_id, from_tier_id, to_tier_id, reason) VALUES ($1, $2, $3, $4, $5)",
 			uuid.New().String(), driverID, currentTier.String, newTier, "auto_evaluation")
 	}
 	return newTier

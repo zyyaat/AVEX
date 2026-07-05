@@ -23,7 +23,7 @@
 |---|---|
 | **Backend** | Go 1.23 (بنية modular: cmd/ + internal/) |
 | **Frontend** | Next.js 16, React 19, TypeScript |
-| **Database** | SQLite (تطوير) / PostgreSQL (إنتاج) — دعم كامل للهجتين |
+| **Database** | PostgreSQL (إنتاج) — `pgx/v5` driver |
 | **Styling** | Tailwind CSS 4, Fluent design (أبيض/أسود/رمادي) |
 | **State** | Zustand |
 | **Animations** | Framer Motion |
@@ -98,21 +98,22 @@ bash scripts/start-all.sh
 
 ## 🌍 متغيرات البيئة
 
-| المتغير | الافتراضي | الوصف |
+| المتغير | مطلوب | الوصف |
 |---|---|---|
-| `PORT` | 8080 | منفذ Go backend |
-| `DB_DRIVER` | sqlite | `sqlite` للتطوير، `postgres` للإنتاج |
-| `DB_PATH` | ./avex.db | مسار SQLite (عند DB_DRIVER=sqlite) |
-| `DATABASE_URL` | - | رابط PostgreSQL (عند DB_DRIVER=postgres) |
-| `JWT_SECRET` | avex-secret-key | مفتاح JWT |
-| `BACKEND_URL` | http://localhost:8080 | رابط الـ backend (للتطبيقات) |
+| `DATABASE_URL` | ✅ نعم | رابط PostgreSQL (مثال: `postgres://user:pass@host:5432/avex?sslmode=require`) |
+| `PORT` | لا (8080) | منفذ Go backend |
+| `JWT_SECRET` | لا | مفتاح JWT |
+| `BACKEND_URL` | للتطبيقات | رابط الـ backend (يُستخدم في Next.js apps) |
 
-### PostgreSQL على الإنتاج
+### PostgreSQL فقط
+الباك إند يتعامل مع **PostgreSQL فقط** — لا يوجد SQLite. تحتاج لقاعدة PostgreSQL مثلاً:
+- **Neon** (neon.tech) — مجاني
+- **Supabase** (supabase.com) — مجاني
+- **Replit Postgres** — مدمج في Replit
+
 ```bash
-DB_DRIVER=postgres
 DATABASE_URL="postgres://user:pass@host:5432/avex?sslmode=require"
 ```
-الباك إند يدعم SQLite و PostgreSQL معاً — يختار اللهجة المناسبة تلقائياً حسب `DB_DRIVER`.
 
 ## 🔌 API Endpoints (95+ مسار)
 

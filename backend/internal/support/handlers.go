@@ -19,11 +19,11 @@ func HandleAgentLogin(w http.ResponseWriter, r *http.Request) {
         p := shared.CleanPhone(b.Phone)
         var id, name, ph, hash sql.NullString
         var active, mustChange sql.NullBool
-        err := shared.DB.QueryRow("SELECT id, name, phone, password_hash, is_active, must_change_password FROM support_agents WHERE phone = ?", p).Scan(&id, &name, &ph, &hash, &active, &mustChange)
+        err := shared.DB.QueryRow("SELECT id, name, phone, password_hash, is_active, must_change_password FROM support_agents WHERE phone = $1", p).Scan(&id, &name, &ph, &hash, &active, &mustChange)
         if err != nil { shared.WriteErr(w, 401, "بيانات الدخول غير صحيحة"); return }
         if !shared.CheckPassword(b.Password, hash.String) { shared.WriteErr(w, 401, "بيانات الدخول غير صحيحة"); return }
         if !active.Bool { shared.WriteErr(w, 403, "حسابك موقوف"); return }
-        shared.DB.Exec("UPDATE support_agents SET last_login = CURRENT_TIMESTAMP WHERE id = ?", id.String)
+        shared.DB.Exec("UPDATE support_agents SET last_login = CURRENT_TIMESTAMP WHERE id = $1", id.String)
         token, _ := shared.GenerateAgentJWT(id.String, ph.String, name.String)
         shared.WriteJSON(w, 200, map[string]interface{}{
                 "token": token, "mustChangePassword": mustChange.Bool,
@@ -35,7 +35,7 @@ func HandleAgentMe(w http.ResponseWriter, r *http.Request) {
         if c == nil || !c.IsAgent { shared.WriteErr(w, 401, "غير مصرح"); return }
         var id, name, ph, email sql.NullString
         var active, mustChange sql.NullBool
-        shared.DB.QueryRow("SELECT id, name, phone, email, is_active, must_change_password FROM support_agents WHERE id = ?", c.AgentID).Scan(&id, &name, &ph, &email, &active, &mustChange)
+        shared.DB.QueryRow("SELECT id, name, phone, email, is_active, must_change_password FROM support_agents WHERE id = $1", c.AgentID).Scan(&id, &name, &ph, &email, &active, &mustChange)
         shared.WriteJSON(w, 200, map[string]interface{}{
                 "id": id.String, "name": name.String, "phone": ph.String, "email": email.String,
                 "isActive": active.Bool, "mustChangePassword": mustChange.Bool,
@@ -89,9 +89,9 @@ func HandleAgentGetTicket(w http.ResponseWriter, r *http.Request) {
                      FROM support_tickets t
                      LEFT JOIN drivers d ON d.id = t.driver_id
                      LEFT JOIN orders o ON o.id = t.order_id
-                     WHERE t.id = ?`, id).Scan(&did, &dname, &dphone, &oid, &typ, &reason, &status, &notes, &assignedTo, &priority, &ct, &rt, &onum, &ost)
+                     WHERE t.id = $1`, id).Scan(&did, &dname, &dphone, &oid, &typ, &reason, &status, &notes, &assignedTo, &priority, &ct, &rt, &onum, &ost)
         if !typ.Valid { shared.WriteErr(w, 404, "التذكرة غير موجودة"); return }
-        rows, _ := shared.DB.Query("SELECT id, sender, body, is_internal, created_at FROM support_messages WHERE ticket_id = ? ORDER BY created_at ASC", id)
+        rows, _ := shared.DB.Query("SELECT id, sender, body, is_internal, created_at FROM support_messages WHERE ticket_id = $1 ORDER BY created_at ASC", id)
         var msgs []map[string]interface{}
         for rows.Next() {
                 var mid, sender, body sql.NullString; var mct sql.NullString; var isInt sql.NullBool
@@ -117,7 +117,7 @@ func HandleAgentAssignTicket(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r)
         if c == nil || !c.IsAgent { shared.WriteErr(w, 401, "غير مصرح"); return }
         id := r.PathValue("id")
-        shared.DB.Exec("UPDATE support_tickets SET assigned_to = ? WHERE id = ?", c.AgentID, id)
+        shared.DB.Exec("UPDATE support_tickets SET assigned_to = $1 WHERE id = $2", c.AgentID, id)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "assignedTo": c.AgentID})
 }
 func HandleAgentSetTicketPriority(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +129,7 @@ func HandleAgentSetTicketPriority(w http.ResponseWriter, r *http.Request) {
         if !map[string]bool{"low": true, "normal": true, "high": true, "urgent": true}[b.Priority] {
                 shared.WriteErr(w, 400, "أولوية غير صالحة"); return
         }
-        shared.DB.Exec("UPDATE support_tickets SET priority = ? WHERE id = ?", b.Priority, id)
+        shared.DB.Exec("UPDATE support_tickets SET priority = $1 WHERE id = $2", b.Priority, id)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAgentSendMessage(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +140,7 @@ func HandleAgentSendMessage(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.Body == "" { shared.WriteErr(w, 400, "الرسالة فارغة"); return }
         mid := uuid.New().String()
-        shared.DB.Exec("INSERT INTO support_messages (id, ticket_id, sender, body, is_internal) VALUES (?, ?, 'agent', ?, ?)", mid, id, b.Body, b.IsInternal)
+        shared.DB.Exec("INSERT INTO support_messages (id, ticket_id, sender, body, is_internal) VALUES ($1, $2, 'agent', $3, $4)", mid, id, b.Body, b.IsInternal)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": mid})
 }
 func HandleAgentResolveTicket(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func HandleAgentResolveTicket(w http.ResponseWriter, r *http.Request) {
         id := r.PathValue("id")
         var b struct{ AdminNotes string }
         json.NewDecoder(r.Body).Decode(&b)
-        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', admin_notes = ?, resolved_at = CURRENT_TIMESTAMP, assigned_to = COALESCE(assigned_to, ?) WHERE id = ?", b.AdminNotes, c.AgentID, id)
+        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', admin_notes = $1, resolved_at = CURRENT_TIMESTAMP, assigned_to = COALESCE(assigned_to, $2) WHERE id = $3", b.AdminNotes, c.AgentID, id)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAgentCancelOrder(w http.ResponseWriter, r *http.Request) {
@@ -157,13 +157,13 @@ func HandleAgentCancelOrder(w http.ResponseWriter, r *http.Request) {
         if c == nil || !c.IsAgent { shared.WriteErr(w, 401, "غير مصرح"); return }
         id := r.PathValue("id") // ticket id
         var oid sql.NullString
-        shared.DB.QueryRow("SELECT order_id FROM support_tickets WHERE id = ? AND type = 'cancellation_request'", id).Scan(&oid)
+        shared.DB.QueryRow("SELECT order_id FROM support_tickets WHERE id = $1 AND type = 'cancellation_request'", id).Scan(&oid)
         if !oid.Valid { shared.WriteErr(w, 404, "تذكرة الإلغاء غير موجودة"); return }
-        shared.DB.Exec("UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?", oid.String)
-        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, admin_notes = 'تم إلغاء الطلب بواسطة الدعم' WHERE id = ?", id)
+        shared.DB.Exec("UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = $1", oid.String)
+        shared.DB.Exec("UPDATE support_tickets SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, admin_notes = 'تم إلغاء الطلب بواسطة الدعم' WHERE id = $1", id)
         var did sql.NullString
-        shared.DB.QueryRow("SELECT driver_id FROM orders WHERE id = ?", oid.String).Scan(&did)
-        if did.Valid { shared.DB.Exec("UPDATE driver_stats SET cancelled_by_support = cancelled_by_support + 1 WHERE driver_id = ?", did.String) }
+        shared.DB.QueryRow("SELECT driver_id FROM orders WHERE id = $1", oid.String).Scan(&did)
+        if did.Valid { shared.DB.Exec("UPDATE driver_stats SET cancelled_by_support = cancelled_by_support + 1 WHERE driver_id = $1", did.String) }
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -174,7 +174,7 @@ func HandleAgentSearch(w http.ResponseWriter, r *http.Request) {
         q := r.URL.Query().Get("q")
         if len(q) < 3 { shared.WriteJSON(w, 200, map[string]interface{}{"customers": []interface{}{}, "drivers": []interface{}{}, "orders": []interface{}{}}); return }
         // Customers
-        custRows, _ := shared.DB.Query("SELECT id, name, phone FROM users WHERE name LIKE ? OR phone LIKE ? LIMIT 10", "%"+q+"%", "%"+q+"%")
+        custRows, _ := shared.DB.Query("SELECT id, name, phone FROM users WHERE name LIKE $1 OR phone LIKE $2 LIMIT 10", "%"+q+"%", "%"+q+"%")
         var customers []map[string]interface{}
         for custRows.Next() {
                 var id, n, p sql.NullString
@@ -183,7 +183,7 @@ func HandleAgentSearch(w http.ResponseWriter, r *http.Request) {
         }
         custRows.Close()
         // Drivers
-        drvRows, _ := shared.DB.Query("SELECT id, name, phone, dt.name_ar AS tier_name FROM drivers d LEFT JOIN driver_tiers dt ON dt.id = d.tier_id WHERE d.name LIKE ? OR d.phone LIKE ? LIMIT 10", "%"+q+"%", "%"+q+"%")
+        drvRows, _ := shared.DB.Query("SELECT id, name, phone, dt.name_ar AS tier_name FROM drivers d LEFT JOIN driver_tiers dt ON dt.id = d.tier_id WHERE d.name LIKE $1 OR d.phone LIKE $2 LIMIT 10", "%"+q+"%", "%"+q+"%")
         var drivers []map[string]interface{}
         for drvRows.Next() {
                 var id, n, p, t sql.NullString
@@ -192,7 +192,7 @@ func HandleAgentSearch(w http.ResponseWriter, r *http.Request) {
         }
         drvRows.Close()
         // Orders
-        ordRows, _ := shared.DB.Query("SELECT id, order_number, customer_name, phone, status, total, created_at FROM orders WHERE order_number LIKE ? OR customer_name LIKE ? OR phone LIKE ? ORDER BY created_at DESC LIMIT 10", "%"+q+"%", "%"+q+"%", "%"+q+"%")
+        ordRows, _ := shared.DB.Query("SELECT id, order_number, customer_name, phone, status, total, created_at FROM orders WHERE order_number LIKE $1 OR customer_name LIKE $2 OR phone LIKE $3 ORDER BY created_at DESC LIMIT 10", "%"+q+"%", "%"+q+"%", "%"+q+"%")
         var orders []map[string]interface{}
         for ordRows.Next() {
                 var id, on, cn, p, st sql.NullString; var tot sql.NullFloat64; var ct sql.NullString
@@ -216,10 +216,10 @@ func HandleAgentGetOrder(w http.ResponseWriter, r *http.Request) {
                      o.payment_method, o.status, o.subtotal, o.delivery_fee, o.discount, o.total, o.driver_fee,
                      r.name, r.name_ar, o.driver_id, d.name, d.phone, o.created_at, o.updated_at
                      FROM orders o LEFT JOIN restaurants r ON r.id = o.restaurant_id
-                     LEFT JOIN drivers d ON d.id = o.driver_id WHERE o.id = ?`, id).
+                     LEFT JOIN drivers d ON d.id = o.driver_id WHERE o.id = $1`, id).
                 Scan(&on, &cn, &ph, &la, &lat, &lng, &lu, &pm, &st, &sub, &df, &dc, &tot, &drvFee, &restName, &restNameAr, &did, &dname, &dphone, &ct, &ut)
         if !on.Valid { shared.WriteErr(w, 404, "الطلب غير موجود"); return }
-        rows, _ := shared.DB.Query("SELECT name, price, quantity FROM order_items WHERE order_id = ?", id)
+        rows, _ := shared.DB.Query("SELECT name, price, quantity FROM order_items WHERE order_id = $1", id)
         var items []map[string]interface{}
         for rows.Next() {
                 var n sql.NullString; var p float64; var q int
@@ -249,14 +249,14 @@ func HandleAgentGetDriver(w http.ResponseWriter, r *http.Request) {
         var lat, lng sql.NullFloat64
         var lastSeen, createdAt sql.NullString
         shared.DB.QueryRow(`SELECT d.name, d.phone, dt.name_ar, dt.color, dt.sort_order, d.is_online, d.is_active, d.is_verified, d.auto_accept, d.lat, d.lng, d.last_seen_at, d.created_at
-                     FROM drivers d LEFT JOIN driver_tiers dt ON dt.id = d.tier_id WHERE d.id = ?`, id).
+                     FROM drivers d LEFT JOIN driver_tiers dt ON dt.id = d.tier_id WHERE d.id = $1`, id).
                 Scan(&name, &ph, &tierName, &tierColor, &tierSort, &online, &active, &verified, &autoAccept, &lat, &lng, &lastSeen, &createdAt)
         if !name.Valid { shared.WriteErr(w, 404, "المندوب غير موجود"); return }
         var stats map[string]interface{}
         var acc, rej, comp, onTime, ratingSum, earnings float64
         var ratingCount, shiftSch, shiftAtt int
         shared.DB.QueryRow(`SELECT accepted_orders, rejected_orders, completed_orders, on_time_count, rating_sum, rating_count, shift_scheduled, shift_attended, total_earnings
-                     FROM driver_stats WHERE driver_id = ?`, id).Scan(&acc, &rej, &comp, &onTime, &ratingSum, &ratingCount, &shiftSch, &shiftAtt, &earnings)
+                     FROM driver_stats WHERE driver_id = $1`, id).Scan(&acc, &rej, &comp, &onTime, &ratingSum, &ratingCount, &shiftSch, &shiftAtt, &earnings)
         accRate := 0.0; if acc+rej > 0 { accRate = acc/(acc+rej)*100 }
         compRate := 0.0; if acc > 0 { compRate = comp/acc*100 }
         rating := 0.0; if ratingCount > 0 { rating = ratingSum/float64(ratingCount) }
@@ -268,7 +268,7 @@ func HandleAgentGetDriver(w http.ResponseWriter, r *http.Request) {
                 "totalEarnings": earnings,
         }
         // Recent orders
-        rows, _ := shared.DB.Query("SELECT id, order_number, status, driver_fee, created_at FROM orders WHERE driver_id = ? ORDER BY created_at DESC LIMIT 10", id)
+        rows, _ := shared.DB.Query("SELECT id, order_number, status, driver_fee, created_at FROM orders WHERE driver_id = $1 ORDER BY created_at DESC LIMIT 10", id)
         var recent []map[string]interface{}
         for rows.Next() {
                 var oid, on, st sql.NullString; var fee sql.NullFloat64; var ct sql.NullString
@@ -294,7 +294,7 @@ func HandleAgentStats(w http.ResponseWriter, r *http.Request) {
         if c == nil || !c.IsAgent { shared.WriteErr(w, 401, "غير مصرح"); return }
         var openCount, mineCount, todayCount, urgentCount sql.NullInt64
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'").Scan(&openCount)
-        shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND assigned_to = ?", c.AgentID).Scan(&mineCount)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND assigned_to = $1", c.AgentID).Scan(&mineCount)
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE DATE(created_at) = CURRENT_DATE").Scan(&todayCount)
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND priority = 'urgent'").Scan(&urgentCount)
         // by type

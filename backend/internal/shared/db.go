@@ -4,52 +4,23 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "modernc.org/sqlite"
 )
 
 // DB is the global database connection used by all packages.
 var DB *sql.DB
 
-// DBDriver holds the active database driver: "postgres" or "sqlite".
-var DBDriver string
-
-// InitDB opens the database connection based on the DB_DRIVER env var.
-//   - DB_DRIVER=postgres  → requires DATABASE_URL (e.g. "postgres://user:pass@host:5432/dbname?sslmode=disable")
-//   - DB_DRIVER=sqlite    → uses DB_PATH (default ./avex.db)
+// InitDB opens the PostgreSQL connection using DATABASE_URL.
+// DATABASE_URL example: "postgres://user:pass@host:5432/dbname?sslmode=require"
 func InitDB() error {
-	DBDriver = os.Getenv("DB_DRIVER")
-	if DBDriver == "" {
-		DBDriver = "sqlite"
-	}
-
-	var dsn string
-	var driverName string
-
-	switch DBDriver {
-	case "postgres", "postgresql", "pg":
-		driverName = "pgx"
-		dsn = os.Getenv("DATABASE_URL")
-		if dsn == "" {
-			return fmt.Errorf("DATABASE_URL is required when DB_DRIVER=postgres")
-		}
-		// Normalize common URL schemes
-		if strings.HasPrefix(dsn, "postgresql://") {
-			dsn = "postgres://" + dsn[len("postgresql://"):]
-		}
-	default:
-		driverName = "sqlite"
-		dbPath := os.Getenv("DB_PATH")
-		if dbPath == "" {
-			dbPath = "./avex.db"
-		}
-		dsn = dbPath + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return fmt.Errorf("DATABASE_URL environment variable is required (PostgreSQL connection string)")
 	}
 
 	var err error
-	DB, err = sql.Open(driverName, dsn)
+	DB, err = sql.Open("pgx", dsn)
 	if err != nil {
 		return err
 	}
@@ -107,46 +78,48 @@ func createSchema() error {
 }
 
 func runMigrations() error {
+	// Idempotent column additions. ALTER TABLE ... ADD COLUMN IF NOT EXISTS is supported by PostgreSQL 9.6+.
 	migrations := []string{
-		"ALTER TABLE restaurants ADD COLUMN lat REAL",
-		"ALTER TABLE restaurants ADD COLUMN lng REAL",
-		"ALTER TABLE restaurants ADD COLUMN zone_id TEXT",
-		"ALTER TABLE orders ADD COLUMN driver_id TEXT",
-		"ALTER TABLE orders ADD COLUMN zone_id TEXT",
-		"ALTER TABLE orders ADD COLUMN dispatch_distance_m INTEGER",
-		"ALTER TABLE orders ADD COLUMN delivery_distance_m INTEGER",
-		"ALTER TABLE orders ADD COLUMN driver_fee REAL DEFAULT 0",
-		"ALTER TABLE orders ADD COLUMN platform_margin REAL DEFAULT 0",
-		"ALTER TABLE drivers ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE",
-		"ALTER TABLE support_tickets ADD COLUMN assigned_to TEXT",
-		"ALTER TABLE support_tickets ADD COLUMN priority VARCHAR(20) DEFAULT 'normal'",
-		"ALTER TABLE support_messages ADD COLUMN is_internal BOOLEAN DEFAULT FALSE",
+		"ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS lat REAL",
+		"ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS lng REAL",
+		"ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS zone_id TEXT",
+		"ALTER TABLE orders ADD COLUMN IF NOT EXISTS driver_id TEXT",
+		"ALTER TABLE orders ADD COLUMN IF NOT EXISTS zone_id TEXT",
+		"ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatch_distance_m INTEGER",
+		"ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_m INTEGER",
+		"ALTER TABLE orders ADD COLUMN IF NOT EXISTS driver_fee REAL DEFAULT 0",
+		"ALTER TABLE orders ADD COLUMN IF NOT EXISTS platform_margin REAL DEFAULT 0",
+		"ALTER TABLE drivers ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE",
+		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS assigned_to TEXT",
+		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'",
+		"ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS is_internal BOOLEAN DEFAULT FALSE",
 	}
 	for _, m := range migrations {
-		// ignore errors — column already exists
-		DB.Exec(m)
+		if _, err := DB.Exec(m); err != nil {
+			// Log but don't fail — non-fatal
+			fmt.Printf("migration skipped: %s (%v)\n", m, err)
+		}
 	}
 	return nil
 }
 
 func seedSettings() error {
 	settings := map[string]string{
-		"free_shipping_threshold":  "30",
-		"delivery_fee":             "3.99",
-		"restaurant_name":          "AVEX",
-		"restaurant_name_ar":       "أفكس",
-		"restaurant_phone":         "+201005551234",
-		"restaurant_address":       "القاهرة، مصر",
-		"restaurant_hours":         "يومياً 10ص - 12م",
-		"dispatch_radius_m":        "5000",
-		"offer_expiry_seconds":     "15",
-		"pickup_geofence_m":        "70",
-		"delivery_geofence_m":      "50",
-		"location_stale_seconds":   "30",
+		"free_shipping_threshold": "30",
+		"delivery_fee":            "3.99",
+		"restaurant_name":         "AVEX",
+		"restaurant_name_ar":      "أفكس",
+		"restaurant_phone":        "+201005551234",
+		"restaurant_address":      "القاهرة، مصر",
+		"restaurant_hours":        "يومياً 10ص - 12م",
+		"dispatch_radius_m":       "5000",
+		"offer_expiry_seconds":    "15",
+		"pickup_geofence_m":       "70",
+		"delivery_geofence_m":     "50",
+		"location_stale_seconds":  "30",
 	}
 	for k, v := range settings {
-		// Works for both SQLite and PostgreSQL
-		DB.Exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING", k, v)
+		DB.Exec("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING", k, v)
 	}
 	return nil
 }
