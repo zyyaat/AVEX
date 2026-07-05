@@ -15,16 +15,24 @@ const navItems = [
 export function MerchantLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { isAuthenticated, merchant, logout, initialize } = useAuth()
+  const { isAuthenticated, mustChangePassword, merchant, logout, initialize } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bootChecked, setBootChecked] = useState(false)
 
   useEffect(() => { initialize().then(() => setBootChecked(true)) }, [initialize])
   useEffect(() => {
-    if (bootChecked && !isAuthenticated && pathname !== '/login') router.replace('/login')
-  }, [bootChecked, isAuthenticated, pathname, router])
+    if (!bootChecked) return
+    if (!isAuthenticated && pathname !== '/login') {
+      router.replace('/login')
+      return
+    }
+    if (isAuthenticated && mustChangePassword && pathname !== '/change-password') {
+      router.replace('/change-password')
+      return
+    }
+  }, [bootChecked, isAuthenticated, mustChangePassword, pathname, router])
 
-  if (pathname === '/login') return <>{children}</>
+  if (pathname === '/login' || pathname === '/change-password') return <>{children}</>
   if (!bootChecked) return <div className="min-h-dvh flex items-center justify-center"><div className="animate-pulse text-gray-400">جاري التحميل...</div></div>
   if (!isAuthenticated) return null
 
