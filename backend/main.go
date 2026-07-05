@@ -29,12 +29,17 @@ var DB *sql.DB
 
 // ===== MODELS =====
 type Claims struct {
-        UserID   string `json:"user_id"`
-        Phone    string `json:"phone"`
-        Name     string `json:"name"`
-        Admin    bool   `json:"admin"`
-        IsDriver bool   `json:"is_driver"`
-        DriverID string `json:"driver_id,omitempty"`
+        UserID     string `json:"user_id"`
+        Phone      string `json:"phone"`
+        Name       string `json:"name"`
+        Admin      bool   `json:"admin"`
+        IsDriver   bool   `json:"is_driver"`
+        DriverID   string `json:"driver_id,omitempty"`
+        IsMerchant bool   `json:"is_merchant"`
+        MerchantID string `json:"merchant_id,omitempty"`
+        RestaurantID string `json:"restaurant_id,omitempty"`
+        IsAgent    bool   `json:"is_agent"`
+        AgentID    string `json:"agent_id,omitempty"`
         jwt.RegisteredClaims
 }
 
@@ -49,6 +54,16 @@ func GenerateJWT(uid, phone, name string, admin bool) (string, error) {
 func GenerateDriverJWT(driverID, phone, name string) (string, error) {
         secret := os.Getenv("JWT_SECRET"); if secret == "" { secret = "avex-secret-key" }
         claims := &Claims{UserID: driverID, Phone: phone, Name: name, IsDriver: true, DriverID: driverID, RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(30*24*time.Hour)), IssuedAt: jwt.NewNumericDate(time.Now())}}
+        return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+}
+func GenerateMerchantJWT(merchantID, restaurantID, phone, name string) (string, error) {
+        secret := os.Getenv("JWT_SECRET"); if secret == "" { secret = "avex-secret-key" }
+        claims := &Claims{UserID: merchantID, Phone: phone, Name: name, IsMerchant: true, MerchantID: merchantID, RestaurantID: restaurantID, RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(30*24*time.Hour)), IssuedAt: jwt.NewNumericDate(time.Now())}}
+        return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+}
+func GenerateAgentJWT(agentID, phone, name string) (string, error) {
+        secret := os.Getenv("JWT_SECRET"); if secret == "" { secret = "avex-secret-key" }
+        claims := &Claims{UserID: agentID, Phone: phone, Name: name, IsAgent: true, AgentID: agentID, Admin: true, RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(30*24*time.Hour)), IssuedAt: jwt.NewNumericDate(time.Now())}}
         return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
 }
 func VerifyJWT(ts string) (*Claims, error) {
@@ -132,6 +147,36 @@ func DriverAuthMW(next http.Handler) http.Handler {
         })
 }
 
+// MerchantAuthMW - requires merchant JWT
+func MerchantAuthMW(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                ah := r.Header.Get("Authorization")
+                if ah == "" { writeErr(w, 401, "غير مصرح"); return }
+                parts := strings.Split(ah, " ")
+                if len(parts) != 2 || parts[0] != "Bearer" { writeErr(w, 401, "صيغة خاطئة"); return }
+                c, err := VerifyJWT(parts[1])
+                if err != nil { writeErr(w, 401, "رمز غير صالح"); return }
+                if !c.IsMerchant { writeErr(w, 403, "هذا المسار للتجار فقط"); return }
+                ctx := contextWithUser(r, c)
+                next.ServeHTTP(w, r.WithContext(ctx))
+        })
+}
+
+// AgentAuthMW - requires support agent JWT (also has admin privileges)
+func AgentAuthMW(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                ah := r.Header.Get("Authorization")
+                if ah == "" { writeErr(w, 401, "غير مصرح"); return }
+                parts := strings.Split(ah, " ")
+                if len(parts) != 2 || parts[0] != "Bearer" { writeErr(w, 401, "صيغة خاطئة"); return }
+                c, err := VerifyJWT(parts[1])
+                if err != nil { writeErr(w, 401, "رمز غير صالح"); return }
+                if !c.IsAgent { writeErr(w, 403, "هذا المسار لموظفي الدعم فقط"); return }
+                ctx := contextWithUser(r, c)
+                next.ServeHTTP(w, r.WithContext(ctx))
+        })
+}
+
 // ===== INIT DB =====
 func InitDB() error {
         dbPath := os.Getenv("DB_PATH"); if dbPath == "" { dbPath = "./avex.db" }
@@ -168,8 +213,16 @@ func InitDB() error {
         CREATE TABLE IF NOT EXISTS driver_shifts (id TEXT PRIMARY KEY, driver_id TEXT NOT NULL, zone_id TEXT, shift_date DATE NOT NULL, start_time TIME NOT NULL, end_time TIME NOT NULL, checked_in_at TIMESTAMP, checked_out_at TIMESTAMP, is_late BOOLEAN DEFAULT 0, late_minutes INTEGER DEFAULT 0, status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (driver_id) REFERENCES drivers(id), FOREIGN KEY (zone_id) REFERENCES delivery_zones(id));
         CREATE TABLE IF NOT EXISTS driver_tier_history (id TEXT PRIMARY KEY, driver_id TEXT NOT NULL, from_tier_id TEXT, to_tier_id TEXT NOT NULL, reason VARCHAR(255), evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (driver_id) REFERENCES drivers(id));
         CREATE TABLE IF NOT EXISTS dispatch_offers (id TEXT PRIMARY KEY, order_id TEXT NOT NULL, driver_id TEXT NOT NULL, offered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, responded_at TIMESTAMP, status VARCHAR(20) DEFAULT 'pending', expires_at TIMESTAMP, distance_m INTEGER, UNIQUE(order_id, driver_id), FOREIGN KEY (order_id) REFERENCES orders(id), FOREIGN KEY (driver_id) REFERENCES drivers(id));
-        CREATE TABLE IF NOT EXISTS support_tickets (id TEXT PRIMARY KEY, driver_id TEXT, order_id TEXT, type VARCHAR(30), reason TEXT, status VARCHAR(20) DEFAULT 'open', admin_notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, resolved_at TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS support_messages (id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL, sender VARCHAR(20) NOT NULL, body TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (ticket_id) REFERENCES support_tickets(id));
+        CREATE TABLE IF NOT EXISTS support_tickets (id TEXT PRIMARY KEY, driver_id TEXT, order_id TEXT, type VARCHAR(30), reason TEXT, status VARCHAR(20) DEFAULT 'open', admin_notes TEXT, assigned_to TEXT, priority VARCHAR(20) DEFAULT 'normal', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, resolved_at TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS support_messages (id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL, sender VARCHAR(20) NOT NULL, body TEXT, is_internal BOOLEAN DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (ticket_id) REFERENCES support_tickets(id));
+
+        -- ===== Merchant system =====
+        CREATE TABLE IF NOT EXISTS merchants (id TEXT PRIMARY KEY, restaurant_id TEXT UNIQUE NOT NULL, name VARCHAR(255), phone VARCHAR(20) UNIQUE, password_hash VARCHAR(255), is_active BOOLEAN DEFAULT 1, must_change_password BOOLEAN DEFAULT 0, last_login TIMESTAMP, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id));
+        CREATE TABLE IF NOT EXISTS store_hours (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, day_of_week INTEGER NOT NULL, open_time TIME, close_time TIME, is_open BOOLEAN DEFAULT 1, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id), UNIQUE(restaurant_id, day_of_week));
+        CREATE TABLE IF NOT EXISTS scheduled_orders (id TEXT PRIMARY KEY, order_id TEXT NOT NULL, scheduled_for TIMESTAMP NOT NULL, status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (order_id) REFERENCES orders(id));
+
+        -- ===== Support agent system =====
+        CREATE TABLE IF NOT EXISTS support_agents (id TEXT PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20) UNIQUE, email VARCHAR(255), password_hash VARCHAR(255), is_active BOOLEAN DEFAULT 1, must_change_password BOOLEAN DEFAULT 0, last_login TIMESTAMP, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         `
         _, err = DB.Exec(schema)
         if err != nil { return err }
@@ -388,6 +441,48 @@ func seedDriverSystem() {
         }
 
         log.Println("✅ Driver system seeded: 4 zones, 4 tiers, 16 prices, 2 demo drivers (01100000001/2, pass: 123456)")
+
+        seedMerchantAndAgentSystem()
+}
+
+// ===== MERCHANT + AGENT SEED =====
+func seedMerchantAndAgentSystem() {
+        var mc int
+        DB.QueryRow("SELECT COUNT(*) FROM merchants").Scan(&mc)
+        if mc > 0 { return } // already seeded
+        log.Println("🌱 Seeding merchants + agents...")
+
+        // Create merchant accounts for the 5 existing restaurants
+        // Default password: 123456
+        merchants := []struct{ id, restID, name, phone string }{
+                {"merch-rest-1", "rest-1", "Burger House Manager", "01200000001"},
+                {"merch-rest-2", "rest-2", "Pizza Palace Manager", "01200000002"},
+                {"merch-rest-3", "rest-3", "Shawarma King Manager", "01200000003"},
+                {"merch-rest-4", "rest-4", "Sweet Dreams Manager", "01200000004"},
+                {"merch-rest-5", "rest-5", "Fresh & Cold Manager", "01200000005"},
+        }
+        hash, _ := HashPassword("123456")
+        for _, m := range merchants {
+                DB.Exec(`INSERT INTO merchants (id, restaurant_id, name, phone, password_hash, is_active, must_change_password)
+                         VALUES (?, ?, ?, ?, ?, 1, 0)`, m.id, m.restID, m.name, m.phone, hash)
+                // Create store hours: 7 days, 10:00 - 23:00
+                for d := 0; d < 7; d++ {
+                        shID := fmt.Sprintf("sh-%s-%d", m.restID, d)
+                        DB.Exec("INSERT INTO store_hours (id, restaurant_id, day_of_week, open_time, close_time, is_open) VALUES (?, ?, ?, '10:00', '23:00', 1)", shID, m.restID, d)
+                }
+        }
+
+        // Support agents
+        agents := []struct{ id, name, phone, email string }{
+                {"agent-001", "أحمد الدعم", "01500000001", "ahmed@avex.support"},
+                {"agent-002", "سارة الدعم", "01500000002", "sara@avex.support"},
+        }
+        for _, a := range agents {
+                DB.Exec(`INSERT INTO support_agents (id, name, phone, email, password_hash, is_active, must_change_password)
+                         VALUES (?, ?, ?, ?, ?, 1, 0)`, a.id, a.name, a.phone, a.email, hash)
+        }
+
+        log.Println("✅ Merchant+Agent seeded: 5 merchants (0120000000X, pass: 123456), 2 agents (01500000001/2)")
 }
 
 // ===== HELPER: Haversine distance in meters =====
@@ -1939,6 +2034,790 @@ func HandleAdminCancelOrder(w http.ResponseWriter, r *http.Request) {
         writeJSON(w, 200, map[string]interface{}{"success": true})
 }
 
+// ===== MERCHANT AUTH HANDLERS =====
+func HandleMerchantLogin(w http.ResponseWriter, r *http.Request) {
+        var b struct{ Phone, Password string }
+        json.NewDecoder(r.Body).Decode(&b)
+        p := cleanPhone(b.Phone)
+        var id, name, ph, hash, restID sql.NullString
+        var active, mustChange sql.NullBool
+        err := DB.QueryRow("SELECT m.id, m.name, m.phone, m.password_hash, m.restaurant_id, m.is_active, m.must_change_password FROM merchants m WHERE m.phone = ?", p).Scan(&id, &name, &ph, &hash, &restID, &active, &mustChange)
+        if err != nil { writeErr(w, 401, "بيانات الدخول غير صحيحة"); return }
+        if !CheckPassword(b.Password, hash.String) { writeErr(w, 401, "بيانات الدخول غير صحيحة"); return }
+        if !active.Bool { writeErr(w, 403, "حسابك موقوف"); return }
+        DB.Exec("UPDATE merchants SET last_login = CURRENT_TIMESTAMP WHERE id = ?", id.String)
+        token, _ := GenerateMerchantJWT(id.String, restID.String, ph.String, name.String)
+        // Get restaurant info
+        var rName, rNameAr sql.NullString
+        DB.QueryRow("SELECT name, name_ar FROM restaurants WHERE id = ?", restID.String).Scan(&rName, &rNameAr)
+        writeJSON(w, 200, map[string]interface{}{
+                "token": token,
+                "mustChangePassword": mustChange.Bool,
+                "merchant": map[string]interface{}{
+                        "id": id.String, "name": name.String, "phone": ph.String,
+                        "restaurantId": restID.String, "restaurantName": rName.String, "restaurantNameAr": rNameAr.String,
+                },
+        })
+}
+func HandleMerchantMe(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        var id, name, ph, restID sql.NullString
+        var active, mustChange, autoAccept sql.NullBool
+        DB.QueryRow("SELECT m.id, m.name, m.phone, m.restaurant_id, m.is_active, m.must_change_password, 0 FROM merchants m WHERE m.id = ?", c.MerchantID).Scan(&id, &name, &ph, &restID, &active, &mustChange, &autoAccept)
+        var rName, rNameAr, rDesc sql.NullString; var rLat, rLng, rRating sql.NullFloat64; var rRC sql.NullInt64; var rActive, rPro sql.NullBool; var rDtMin, rDtMax sql.NullInt64; var rDFee, rMinOrd sql.NullFloat64
+        DB.QueryRow("SELECT name, name_ar, description_ar, lat, lng, rating, rating_count, is_active, is_pro, delivery_time_min, delivery_time_max, delivery_fee, min_order FROM restaurants WHERE id = ?", restID.String).Scan(&rName, &rNameAr, &rDesc, &rLat, &rLng, &rRating, &rRC, &rActive, &rPro, &rDtMin, &rDtMax, &rDFee, &rMinOrd)
+        writeJSON(w, 200, map[string]interface{}{
+                "id": id.String, "name": name.String, "phone": ph.String,
+                "isActive": active.Bool, "mustChangePassword": mustChange.Bool,
+                "restaurant": map[string]interface{}{
+                        "id": restID.String, "name": rName.String, "nameAr": rNameAr.String, "descriptionAr": rDesc.String,
+                        "lat": rLat.Float64, "lng": rLng.Float64, "rating": rRating.Float64, "ratingCount": rRC.Int64,
+                        "isActive": rActive.Bool, "isPro": rPro.Bool,
+                        "deliveryTimeMin": rDtMin.Int64, "deliveryTimeMax": rDtMax.Int64,
+                        "deliveryFee": rDFee.Float64, "minOrder": rMinOrd.Float64,
+                },
+        })
+}
+func HandleMerchantChangePassword(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        var b struct{ OldPassword, NewPassword string }
+        json.NewDecoder(r.Body).Decode(&b)
+        if len(b.NewPassword) < 6 { writeErr(w, 400, "كلمة المرور الجديدة 6 أحرف على الأقل"); return }
+        var hash string
+        DB.QueryRow("SELECT password_hash FROM merchants WHERE id = ?", c.MerchantID).Scan(&hash)
+        if !CheckPassword(b.OldPassword, hash) { writeErr(w, 400, "كلمة المرور الحالية غير صحيحة"); return }
+        newHash, _ := HashPassword(b.NewPassword)
+        DB.Exec("UPDATE merchants SET password_hash = ?, must_change_password = 0 WHERE id = ?", newHash, c.MerchantID)
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+
+// ===== MERCHANT: ORDERS =====
+func HandleMerchantGetOrders(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        status := r.URL.Query().Get("status")
+        q := `SELECT o.id, o.order_number, o.customer_name, o.phone, o.location_address, o.location_lat, o.location_lng, o.location_url,
+                     o.subtotal, o.delivery_fee, o.discount, o.total, o.payment_method, o.status, o.created_at, o.updated_at,
+                     o.driver_id, o.scheduled_for,
+                     (SELECT GROUP_CONCAT(name || ' × ' || quantity, '، ') FROM order_items WHERE order_id = o.id) AS items_summary,
+                     (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS items_count
+              FROM orders o WHERE o.restaurant_id = ?`
+        args := []interface{}{c.RestaurantID}
+        if status != "" {
+                q += " AND o.status = ?"
+                args = append(args, status)
+        }
+        q += " ORDER BY o.created_at DESC LIMIT 100"
+        rows, _ := DB.Query(q, args...)
+        var orders []map[string]interface{}
+        for rows.Next() {
+                var id, on, cn, ph, la, lu, pm, st, itemsSum sql.NullString
+                var lat, lng, sub, df, dc, tot sql.NullFloat64
+                var ct, ut sql.NullString
+                var driverID sql.NullString
+                var schedFor sql.NullString
+                var itemsCount sql.NullInt64
+                rows.Scan(&id, &on, &cn, &ph, &la, &lat, &lng, &lu, &sub, &df, &dc, &tot, &pm, &st, &ct, &ut, &driverID, &schedFor, &itemsSum, &itemsCount)
+                o := map[string]interface{}{
+                        "id": id.String, "orderNumber": on.String, "customerName": cn.String, "phone": ph.String,
+                        "locationAddress": la.String, "locationLat": lat.Float64, "locationLng": lng.Float64, "locationUrl": lu.String,
+                        "subtotal": sub.Float64, "deliveryFee": df.Float64, "discount": dc.Float64, "total": tot.Float64,
+                        "paymentMethod": pm.String, "status": st.String, "createdAt": ct.String, "updatedAt": ut.String,
+                        "driverId": driverID.String, "scheduledFor": schedFor.String,
+                        "itemsSummary": itemsSum.String, "itemsCount": itemsCount.Int64,
+                }
+                orders = append(orders, o)
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"orders": orders})
+}
+
+func HandleMerchantGetOrderItems(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        orderID := r.PathValue("id")
+        // verify belongs to this merchant
+        var restID sql.NullString
+        DB.QueryRow("SELECT restaurant_id FROM orders WHERE id = ?", orderID).Scan(&restID)
+        if !restID.Valid || restID.String != c.RestaurantID { writeErr(w, 403, "غير مصرح"); return }
+        rows, _ := DB.Query("SELECT id, menu_item_id, name, price, quantity FROM order_items WHERE order_id = ?", orderID)
+        var items []map[string]interface{}
+        for rows.Next() {
+                var iid, mid, n sql.NullString; var p float64; var q int
+                rows.Scan(&iid, &mid, &n, &p, &q)
+                items = append(items, map[string]interface{}{"id": iid.String, "menuItemId": mid.String, "name": n.String, "price": p, "quantity": q})
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"items": items})
+}
+
+func HandleMerchantUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        orderID := r.PathValue("id")
+        var b struct{ Status string }
+        json.NewDecoder(r.Body).Decode(&b)
+        // Allowed transitions for merchant: accepted → preparing → ready
+        allowed := map[string]bool{"accepted": true, "preparing": true, "ready": true, "rejected": true}
+        if !allowed[b.Status] { writeErr(w, 400, "الحالة غير مسموحة"); return }
+        // verify ownership
+        var restID sql.NullString; var currStatus sql.NullString
+        DB.QueryRow("SELECT restaurant_id, status FROM orders WHERE id = ?", orderID).Scan(&restID, &currStatus)
+        if !restID.Valid || restID.String != c.RestaurantID { writeErr(w, 403, "غير مصرح"); return }
+        // If merchant rejects (special case): create support ticket
+        if b.Status == "rejected" {
+                DB.Exec("UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?", orderID)
+                writeJSON(w, 200, map[string]interface{}{"success": true, "status": "cancelled"})
+                return
+        }
+        DB.Exec("UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", b.Status, orderID)
+        writeJSON(w, 200, map[string]interface{}{"success": true, "status": b.Status})
+}
+
+// ===== MERCHANT: MENU MANAGEMENT =====
+func HandleMerchantGetMenu(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        rows, _ := DB.Query(`SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id
+                             FROM menu_items WHERE restaurant_id = ? ORDER BY is_available DESC, name_ar ASC`, c.RestaurantID)
+        var items []map[string]interface{}
+        for rows.Next() {
+                var id, n, na, desc, descAr, img, cat sql.NullString
+                var imgU sql.NullString
+                var price, rating sql.NullFloat64
+                var rc, pt, cal sql.NullInt64
+                var pop, avail sql.NullBool
+                rows.Scan(&id, &n, &na, &desc, &descAr, &price, &img, &imgU, &pop, &avail, &rating, &rc, &pt, &cal, &cat)
+                items = append(items, map[string]interface{}{
+                        "id": id.String, "name": n.String, "nameAr": na.String,
+                        "description": desc.String, "descriptionAr": descAr.String,
+                        "price": price.Float64, "image": img.String, "imageUrl": imgU.String,
+                        "isPopular": pop.Bool, "isAvailable": avail.Bool,
+                        "rating": rating.Float64, "ratingCount": rc.Int64,
+                        "prepTime": pt.Int64, "calories": cal.Int64, "categoryId": cat.String,
+                })
+        }
+        rows.Close()
+        // Categories
+        catRows, _ := DB.Query("SELECT id, name, name_ar, icon FROM categories ORDER BY sort_order ASC")
+        var cats []map[string]interface{}
+        for catRows.Next() {
+                var cid, cn, cna, cicon sql.NullString
+                catRows.Scan(&cid, &cn, &cna, &cicon)
+                cats = append(cats, map[string]interface{}{"id": cid.String, "name": cn.String, "nameAr": cna.String, "icon": cicon.String})
+        }
+        catRows.Close()
+        writeJSON(w, 200, map[string]interface{}{"items": items, "categories": cats})
+}
+func HandleMerchantCreateMenuItem(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        var b struct{ Name, NameAr, Description, DescriptionAr, Image, ImageURL, CategoryID string; Price float64; PrepTime, Calories int; IsPopular, IsAvailable bool }
+        json.NewDecoder(r.Body).Decode(&b)
+        if b.NameAr == "" || b.Price <= 0 { writeErr(w, 400, "الاسم والسعر مطلوبان"); return }
+        id := "item-" + uuid.New().String()[:8]
+        if b.Image == "" { b.Image = "🍽️" }
+        if b.CategoryID == "" { b.CategoryID = "cat-Burgers" }
+        DB.Exec(`INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id, restaurant_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.5, 0, ?, ?, ?, ?)`,
+                id, b.Name, b.NameAr, b.Description, b.DescriptionAr, b.Price, b.Image, b.ImageURL, b.IsPopular, b.IsAvailable, b.PrepTime, b.Calories, b.CategoryID, c.RestaurantID)
+        writeJSON(w, 201, map[string]interface{}{"id": id})
+}
+func HandleMerchantUpdateMenuItem(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var b struct{ Name, NameAr, Description, DescriptionAr, Image, ImageURL, CategoryID string; Price float64; PrepTime, Calories int; IsPopular, IsAvailable *bool }
+        json.NewDecoder(r.Body).Decode(&b)
+        // verify ownership
+        var restID sql.NullString
+        DB.QueryRow("SELECT restaurant_id FROM menu_items WHERE id = ?", id).Scan(&restID)
+        if !restID.Valid || restID.String != c.RestaurantID { writeErr(w, 403, "غير مصرح"); return }
+        DB.Exec(`UPDATE menu_items SET
+                 name = COALESCE(NULLIF(?, ''), name),
+                 name_ar = COALESCE(NULLIF(?, ''), name_ar),
+                 description = COALESCE(NULLIF(?, ''), description),
+                 description_ar = COALESCE(NULLIF(?, ''), description_ar),
+                 price = COALESCE(NULLIF(?, 0), price),
+                 image = COALESCE(NULLIF(?, ''), image),
+                 image_url = COALESCE(NULLIF(?, ''), image_url),
+                 category_id = COALESCE(NULLIF(?, ''), category_id),
+                 prep_time = COALESCE(NULLIF(?, 0), prep_time),
+                 calories = COALESCE(NULLIF(?, 0), calories)
+                 WHERE id = ?`,
+                b.Name, b.NameAr, b.Description, b.DescriptionAr, b.Price, b.Image, b.ImageURL, b.CategoryID, b.PrepTime, b.Calories, id)
+        if b.IsPopular != nil { DB.Exec("UPDATE menu_items SET is_popular = ? WHERE id = ?", *b.IsPopular, id) }
+        if b.IsAvailable != nil { DB.Exec("UPDATE menu_items SET is_available = ? WHERE id = ?", *b.IsAvailable, id) }
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+func HandleMerchantDeleteMenuItem(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var restID sql.NullString
+        DB.QueryRow("SELECT restaurant_id FROM menu_items WHERE id = ?", id).Scan(&restID)
+        if !restID.Valid || restID.String != c.RestaurantID { writeErr(w, 403, "غير مصرح"); return }
+        DB.Exec("DELETE FROM menu_items WHERE id = ?", id)
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+
+// ===== MERCHANT: STORE HOURS + PAUSE =====
+func HandleMerchantGetHours(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        rows, _ := DB.Query("SELECT id, day_of_week, open_time, close_time, is_open FROM store_hours WHERE restaurant_id = ? ORDER BY day_of_week ASC", c.RestaurantID)
+        var hours []map[string]interface{}
+        for rows.Next() {
+                var id sql.NullString; var dow sql.NullInt64; var ot, ct sql.NullString; var isOpen sql.NullBool
+                rows.Scan(&id, &dow, &ot, &ct, &isOpen)
+                hours = append(hours, map[string]interface{}{
+                        "id": id.String, "dayOfWeek": dow.Int64, "openTime": ot.String, "closeTime": ct.String, "isOpen": isOpen.Bool,
+                })
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"hours": hours})
+}
+func HandleMerchantUpdateHours(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        var b struct{ Hours []struct{ DayOfWeek int; OpenTime, CloseTime string; IsOpen bool } }
+        json.NewDecoder(r.Body).Decode(&b)
+        for _, h := range b.Hours {
+                DB.Exec(`INSERT INTO store_hours (id, restaurant_id, day_of_week, open_time, close_time, is_open)
+                         VALUES ('sh-'||?||'-'||?, ?, ?, ?, ?, ?)
+                         ON CONFLICT(restaurant_id, day_of_week) DO UPDATE SET open_time=excluded.open_time, close_time=excluded.close_time, is_open=excluded.is_open`,
+                        c.RestaurantID, h.DayOfWeek, c.RestaurantID, h.DayOfWeek, h.OpenTime, h.CloseTime, h.IsOpen)
+        }
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+func HandleMerchantTogglePause(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        var b struct{ IsActive bool }
+        json.NewDecoder(r.Body).Decode(&b)
+        DB.Exec("UPDATE restaurants SET is_active = ? WHERE id = ?", b.IsActive, c.RestaurantID)
+        writeJSON(w, 200, map[string]interface{}{"isActive": b.IsActive})
+}
+
+// ===== MERCHANT: DASHBOARD STATS =====
+func HandleMerchantStats(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        var todayCount, activeCount, completedCount sql.NullInt64
+        var todayRevenue sql.NullFloat64
+        DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND date(created_at) = date('now')", c.RestaurantID).Scan(&todayCount)
+        DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND status IN ('accepted','preparing','ready','assigned','picked_up','on_the_way','delivering')", c.RestaurantID).Scan(&activeCount)
+        DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND status = 'delivered'", c.RestaurantID).Scan(&completedCount)
+        DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE restaurant_id = ? AND status = 'delivered' AND date(created_at) = date('now')", c.RestaurantID).Scan(&todayRevenue)
+        // last 7 days revenue
+        rows, _ := DB.Query("SELECT date(created_at) AS d, COALESCE(SUM(subtotal), 0) AS r, COUNT(*) AS c FROM orders WHERE restaurant_id = ? AND created_at >= datetime('now', '-7 days') AND status = 'delivered' GROUP BY date(created_at) ORDER BY d ASC", c.RestaurantID)
+        var daily []map[string]interface{}
+        for rows.Next() {
+                var d sql.NullString; var r sql.NullFloat64; var cnt sql.NullInt64
+                rows.Scan(&d, &r, &cnt)
+                daily = append(daily, map[string]interface{}{"date": d.String, "revenue": r.Float64, "count": cnt.Int64})
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{
+                "todayCount": todayCount.Int64, "activeCount": activeCount.Int64,
+                "completedCount": completedCount.Int64, "todayRevenue": todayRevenue.Float64,
+                "daily": daily,
+        })
+}
+
+// ===== MERCHANT: SCHEDULED ORDERS =====
+func HandleMerchantGetScheduledOrders(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsMerchant { writeErr(w, 401, "غير مصرح"); return }
+        rows, _ := DB.Query(`SELECT s.id, s.order_id, s.scheduled_for, s.status, s.created_at,
+                                    o.order_number, o.customer_name, o.phone, o.total, o.status AS order_status,
+                                    (SELECT GROUP_CONCAT(name || ' × ' || quantity, '، ') FROM order_items WHERE order_id = o.id) AS items_summary
+                             FROM scheduled_orders s JOIN orders o ON o.id = s.order_id
+                             WHERE o.restaurant_id = ? AND s.status = 'scheduled'
+                             ORDER BY s.scheduled_for ASC`, c.RestaurantID)
+        var orders []map[string]interface{}
+        for rows.Next() {
+                var sid, oid, schedFor, status, ct, on, cn, ph, ost, itemsSum sql.NullString
+                var tot sql.NullFloat64
+                rows.Scan(&sid, &oid, &schedFor, &status, &ct, &on, &cn, &ph, &tot, &ost, &itemsSum)
+                orders = append(orders, map[string]interface{}{
+                        "id": sid.String, "orderId": oid.String, "scheduledFor": schedFor.String,
+                        "status": status.String, "createdAt": ct.String,
+                        "orderNumber": on.String, "customerName": cn.String, "phone": ph.String,
+                        "total": tot.Float64, "orderStatus": ost.String, "itemsSummary": itemsSum.String,
+                })
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"scheduledOrders": orders})
+}
+
+// ===== SUPPORT AGENT AUTH =====
+func HandleAgentLogin(w http.ResponseWriter, r *http.Request) {
+        var b struct{ Phone, Password string }
+        json.NewDecoder(r.Body).Decode(&b)
+        p := cleanPhone(b.Phone)
+        var id, name, ph, hash sql.NullString
+        var active, mustChange sql.NullBool
+        err := DB.QueryRow("SELECT id, name, phone, password_hash, is_active, must_change_password FROM support_agents WHERE phone = ?", p).Scan(&id, &name, &ph, &hash, &active, &mustChange)
+        if err != nil { writeErr(w, 401, "بيانات الدخول غير صحيحة"); return }
+        if !CheckPassword(b.Password, hash.String) { writeErr(w, 401, "بيانات الدخول غير صحيحة"); return }
+        if !active.Bool { writeErr(w, 403, "حسابك موقوف"); return }
+        DB.Exec("UPDATE support_agents SET last_login = CURRENT_TIMESTAMP WHERE id = ?", id.String)
+        token, _ := GenerateAgentJWT(id.String, ph.String, name.String)
+        writeJSON(w, 200, map[string]interface{}{
+                "token": token, "mustChangePassword": mustChange.Bool,
+                "agent": map[string]interface{}{"id": id.String, "name": name.String, "phone": ph.String},
+        })
+}
+func HandleAgentMe(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        var id, name, ph, email sql.NullString
+        var active, mustChange sql.NullBool
+        DB.QueryRow("SELECT id, name, phone, email, is_active, must_change_password FROM support_agents WHERE id = ?", c.AgentID).Scan(&id, &name, &ph, &email, &active, &mustChange)
+        writeJSON(w, 200, map[string]interface{}{
+                "id": id.String, "name": name.String, "phone": ph.String, "email": email.String,
+                "isActive": active.Bool, "mustChangePassword": mustChange.Bool,
+        })
+}
+
+// ===== AGENT: TICKETS =====
+func HandleAgentGetTickets(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        filter := r.URL.Query().Get("filter")
+        q := `SELECT t.id, t.driver_id, d.name AS driver_name, d.phone AS driver_phone, t.order_id, t.type, t.reason, t.status, t.admin_notes, t.assigned_to, t.priority, t.created_at, t.resolved_at,
+                     o.order_number AS order_number, o.status AS order_status
+              FROM support_tickets t
+              LEFT JOIN drivers d ON d.id = t.driver_id
+              LEFT JOIN orders o ON o.id = t.order_id`
+        args := []interface{}{}
+        switch filter {
+        case "mine":
+                q += " WHERE t.assigned_to = ?"
+                args = append(args, c.AgentID)
+        case "open":
+                q += " WHERE t.status = 'open'"
+        case "unassigned":
+                q += " WHERE t.status = 'open' AND t.assigned_to IS NULL"
+        }
+        q += " ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, t.created_at DESC"
+        rows, _ := DB.Query(q, args...)
+        var tickets []map[string]interface{}
+        for rows.Next() {
+                var id, did, dname, dphone, oid, typ, reason, status, notes, assignedTo, priority, ct, rt, onum, ost sql.NullString
+                rows.Scan(&id, &did, &dname, &dphone, &oid, &typ, &reason, &status, &notes, &assignedTo, &priority, &ct, &rt, &onum, &ost)
+                tickets = append(tickets, map[string]interface{}{
+                        "id": id.String, "driverId": did.String, "driverName": dname.String, "driverPhone": dphone.String,
+                        "orderId": oid.String, "type": typ.String, "reason": reason.String, "status": status.String,
+                        "adminNotes": notes.String, "assignedTo": assignedTo.String, "priority": priority.String,
+                        "createdAt": ct.String, "resolvedAt": rt.String,
+                        "orderNumber": onum.String, "orderStatus": ost.String,
+                })
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"tickets": tickets, "agentId": c.AgentID})
+}
+func HandleAgentGetTicket(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var did, dname, dphone, oid, typ, reason, status, notes, assignedTo, priority, ct, rt, onum, ost sql.NullString
+        DB.QueryRow(`SELECT t.driver_id, d.name, d.phone, t.order_id, t.type, t.reason, t.status, t.admin_notes, t.assigned_to, t.priority, t.created_at, t.resolved_at,
+                     o.order_number, o.status
+                     FROM support_tickets t
+                     LEFT JOIN drivers d ON d.id = t.driver_id
+                     LEFT JOIN orders o ON o.id = t.order_id
+                     WHERE t.id = ?`, id).Scan(&did, &dname, &dphone, &oid, &typ, &reason, &status, &notes, &assignedTo, &priority, &ct, &rt, &onum, &ost)
+        if !typ.Valid { writeErr(w, 404, "التذكرة غير موجودة"); return }
+        rows, _ := DB.Query("SELECT id, sender, body, is_internal, created_at FROM support_messages WHERE ticket_id = ? ORDER BY created_at ASC", id)
+        var msgs []map[string]interface{}
+        for rows.Next() {
+                var mid, sender, body sql.NullString; var mct sql.NullString; var isInt sql.NullBool
+                rows.Scan(&mid, &sender, &body, &isInt, &mct)
+                msgs = append(msgs, map[string]interface{}{
+                        "id": mid.String, "sender": sender.String, "body": body.String,
+                        "isInternal": isInt.Bool, "createdAt": mct.String,
+                })
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{
+                "ticket": map[string]interface{}{
+                        "id": id, "driverId": did.String, "driverName": dname.String, "driverPhone": dphone.String,
+                        "orderId": oid.String, "type": typ.String, "reason": reason.String, "status": status.String,
+                        "adminNotes": notes.String, "assignedTo": assignedTo.String, "priority": priority.String,
+                        "createdAt": ct.String, "resolvedAt": rt.String,
+                        "orderNumber": onum.String, "orderStatus": ost.String,
+                },
+                "messages": msgs,
+        })
+}
+func HandleAgentAssignTicket(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        DB.Exec("UPDATE support_tickets SET assigned_to = ? WHERE id = ?", c.AgentID, id)
+        writeJSON(w, 200, map[string]interface{}{"success": true, "assignedTo": c.AgentID})
+}
+func HandleAgentSetTicketPriority(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var b struct{ Priority string }
+        json.NewDecoder(r.Body).Decode(&b)
+        if !map[string]bool{"low": true, "normal": true, "high": true, "urgent": true}[b.Priority] {
+                writeErr(w, 400, "أولوية غير صالحة"); return
+        }
+        DB.Exec("UPDATE support_tickets SET priority = ? WHERE id = ?", b.Priority, id)
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+func HandleAgentSendMessage(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var b struct{ Body string; IsInternal bool }
+        json.NewDecoder(r.Body).Decode(&b)
+        if b.Body == "" { writeErr(w, 400, "الرسالة فارغة"); return }
+        mid := uuid.New().String()
+        DB.Exec("INSERT INTO support_messages (id, ticket_id, sender, body, is_internal) VALUES (?, ?, 'agent', ?, ?)", mid, id, b.Body, b.IsInternal)
+        writeJSON(w, 201, map[string]interface{}{"id": mid})
+}
+func HandleAgentResolveTicket(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var b struct{ AdminNotes string }
+        json.NewDecoder(r.Body).Decode(&b)
+        DB.Exec("UPDATE support_tickets SET status = 'resolved', admin_notes = ?, resolved_at = CURRENT_TIMESTAMP, assigned_to = COALESCE(assigned_to, ?) WHERE id = ?", b.AdminNotes, c.AgentID, id)
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+func HandleAgentCancelOrder(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id") // ticket id
+        var oid sql.NullString
+        DB.QueryRow("SELECT order_id FROM support_tickets WHERE id = ? AND type = 'cancellation_request'", id).Scan(&oid)
+        if !oid.Valid { writeErr(w, 404, "تذكرة الإلغاء غير موجودة"); return }
+        DB.Exec("UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?", oid.String)
+        DB.Exec("UPDATE support_tickets SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, admin_notes = 'تم إلغاء الطلب بواسطة الدعم' WHERE id = ?", id)
+        var did sql.NullString
+        DB.QueryRow("SELECT driver_id FROM orders WHERE id = ?", oid.String).Scan(&did)
+        if did.Valid { DB.Exec("UPDATE driver_stats SET cancelled_by_support = cancelled_by_support + 1 WHERE driver_id = ?", did.String) }
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+
+// ===== AGENT: SEARCH (customers, drivers, orders) =====
+func HandleAgentSearch(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        q := r.URL.Query().Get("q")
+        if len(q) < 3 { writeJSON(w, 200, map[string]interface{}{"customers": []interface{}{}, "drivers": []interface{}{}, "orders": []interface{}{}}); return }
+        // Customers
+        custRows, _ := DB.Query("SELECT id, name, phone FROM users WHERE name LIKE ? OR phone LIKE ? LIMIT 10", "%"+q+"%", "%"+q+"%")
+        var customers []map[string]interface{}
+        for custRows.Next() {
+                var id, n, p sql.NullString
+                custRows.Scan(&id, &n, &p)
+                customers = append(customers, map[string]interface{}{"id": id.String, "name": n.String, "phone": p.String})
+        }
+        custRows.Close()
+        // Drivers
+        drvRows, _ := DB.Query("SELECT id, name, phone, dt.name_ar AS tier_name FROM drivers d LEFT JOIN driver_tiers dt ON dt.id = d.tier_id WHERE d.name LIKE ? OR d.phone LIKE ? LIMIT 10", "%"+q+"%", "%"+q+"%")
+        var drivers []map[string]interface{}
+        for drvRows.Next() {
+                var id, n, p, t sql.NullString
+                drvRows.Scan(&id, &n, &p, &t)
+                drivers = append(drivers, map[string]interface{}{"id": id.String, "name": n.String, "phone": p.String, "tierName": t.String})
+        }
+        drvRows.Close()
+        // Orders
+        ordRows, _ := DB.Query("SELECT id, order_number, customer_name, phone, status, total, created_at FROM orders WHERE order_number LIKE ? OR customer_name LIKE ? OR phone LIKE ? ORDER BY created_at DESC LIMIT 10", "%"+q+"%", "%"+q+"%", "%"+q+"%")
+        var orders []map[string]interface{}
+        for ordRows.Next() {
+                var id, on, cn, p, st sql.NullString; var tot sql.NullFloat64; var ct sql.NullString
+                ordRows.Scan(&id, &on, &cn, &p, &st, &tot, &ct)
+                orders = append(orders, map[string]interface{}{
+                        "id": id.String, "orderNumber": on.String, "customerName": cn.String, "phone": p.String,
+                        "status": st.String, "total": tot.Float64, "createdAt": ct.String,
+                })
+        }
+        ordRows.Close()
+        writeJSON(w, 200, map[string]interface{}{"customers": customers, "drivers": drivers, "orders": orders})
+}
+func HandleAgentGetOrder(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var on, cn, ph, la, lu, pm, st sql.NullString; var lat, lng, sub, df, dc, tot, drvFee sql.NullFloat64
+        var restName, restNameAr, did, dname, dphone sql.NullString
+        var ct, ut sql.NullString
+        DB.QueryRow(`SELECT o.order_number, o.customer_name, o.phone, o.location_address, o.location_lat, o.location_lng, o.location_url,
+                     o.payment_method, o.status, o.subtotal, o.delivery_fee, o.discount, o.total, o.driver_fee,
+                     r.name, r.name_ar, o.driver_id, d.name, d.phone, o.created_at, o.updated_at
+                     FROM orders o LEFT JOIN restaurants r ON r.id = o.restaurant_id
+                     LEFT JOIN drivers d ON d.id = o.driver_id WHERE o.id = ?`, id).
+                Scan(&on, &cn, &ph, &la, &lat, &lng, &lu, &pm, &st, &sub, &df, &dc, &tot, &drvFee, &restName, &restNameAr, &did, &dname, &dphone, &ct, &ut)
+        if !on.Valid { writeErr(w, 404, "الطلب غير موجود"); return }
+        rows, _ := DB.Query("SELECT name, price, quantity FROM order_items WHERE order_id = ?", id)
+        var items []map[string]interface{}
+        for rows.Next() {
+                var n sql.NullString; var p float64; var q int
+                rows.Scan(&n, &p, &q)
+                items = append(items, map[string]interface{}{"name": n.String, "price": p, "quantity": q})
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{
+                "order": map[string]interface{}{
+                        "id": id, "orderNumber": on.String, "customerName": cn.String, "phone": ph.String,
+                        "locationAddress": la.String, "locationLat": lat.Float64, "locationLng": lng.Float64, "locationUrl": lu.String,
+                        "paymentMethod": pm.String, "status": st.String, "subtotal": sub.Float64, "deliveryFee": df.Float64,
+                        "discount": dc.Float64, "total": tot.Float64, "driverFee": drvFee.Float64,
+                        "restaurantName": restName.String, "restaurantNameAr": restNameAr.String,
+                        "driverId": did.String, "driverName": dname.String, "driverPhone": dphone.String,
+                        "createdAt": ct.String, "updatedAt": ut.String,
+                        "items": items,
+                },
+        })
+}
+func HandleAgentGetDriver(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var name, ph, tierName, tierColor sql.NullString; var tierSort sql.NullInt64
+        var online, active, verified, autoAccept sql.NullBool
+        var lat, lng sql.NullFloat64
+        var lastSeen, createdAt sql.NullString
+        DB.QueryRow(`SELECT d.name, d.phone, dt.name_ar, dt.color, dt.sort_order, d.is_online, d.is_active, d.is_verified, d.auto_accept, d.lat, d.lng, d.last_seen_at, d.created_at
+                     FROM drivers d LEFT JOIN driver_tiers dt ON dt.id = d.tier_id WHERE d.id = ?`, id).
+                Scan(&name, &ph, &tierName, &tierColor, &tierSort, &online, &active, &verified, &autoAccept, &lat, &lng, &lastSeen, &createdAt)
+        if !name.Valid { writeErr(w, 404, "المندوب غير موجود"); return }
+        var stats map[string]interface{}
+        var acc, rej, comp, onTime, ratingSum, earnings float64
+        var ratingCount, shiftSch, shiftAtt int
+        DB.QueryRow(`SELECT accepted_orders, rejected_orders, completed_orders, on_time_count, rating_sum, rating_count, shift_scheduled, shift_attended, total_earnings
+                     FROM driver_stats WHERE driver_id = ?`, id).Scan(&acc, &rej, &comp, &onTime, &ratingSum, &ratingCount, &shiftSch, &shiftAtt, &earnings)
+        accRate := 0.0; if acc+rej > 0 { accRate = acc/(acc+rej)*100 }
+        compRate := 0.0; if acc > 0 { compRate = comp/acc*100 }
+        rating := 0.0; if ratingCount > 0 { rating = ratingSum/float64(ratingCount) }
+        onTimeRate := 0.0; if comp > 0 { onTimeRate = onTime/comp*100 }
+        stats = map[string]interface{}{
+                "acceptedOrders": acc, "rejectedOrders": rej, "completedOrders": comp,
+                "rating": rating, "ratingCount": ratingCount,
+                "acceptanceRate": accRate, "completionRate": compRate, "onTimeRate": onTimeRate,
+                "totalEarnings": earnings,
+        }
+        // Recent orders
+        rows, _ := DB.Query("SELECT id, order_number, status, driver_fee, created_at FROM orders WHERE driver_id = ? ORDER BY created_at DESC LIMIT 10", id)
+        var recent []map[string]interface{}
+        for rows.Next() {
+                var oid, on, st sql.NullString; var fee sql.NullFloat64; var ct sql.NullString
+                rows.Scan(&oid, &on, &st, &fee, &ct)
+                recent = append(recent, map[string]interface{}{"id": oid.String, "orderNumber": on.String, "status": st.String, "earnings": fee.Float64, "createdAt": ct.String})
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{
+                "driver": map[string]interface{}{
+                        "id": id, "name": name.String, "phone": ph.String,
+                        "tierName": tierName.String, "tierColor": tierColor.String, "tierSortOrder": tierSort.Int64,
+                        "isOnline": online.Bool, "isActive": active.Bool, "isVerified": verified.Bool, "autoAccept": autoAccept.Bool,
+                        "lat": lat.Float64, "lng": lng.Float64, "lastSeen": lastSeen.String, "createdAt": createdAt.String,
+                },
+                "stats": stats,
+                "recentOrders": recent,
+        })
+}
+
+// ===== AGENT: DASHBOARD STATS =====
+func HandleAgentStats(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.IsAgent { writeErr(w, 401, "غير مصرح"); return }
+        var openCount, mineCount, todayCount, urgentCount sql.NullInt64
+        DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'").Scan(&openCount)
+        DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND assigned_to = ?", c.AgentID).Scan(&mineCount)
+        DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE date(created_at) = date('now')").Scan(&todayCount)
+        DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND priority = 'urgent'").Scan(&urgentCount)
+        // by type
+        rows, _ := DB.Query("SELECT type, COUNT(*) AS c FROM support_tickets WHERE status = 'open' GROUP BY type")
+        byType := map[string]int64{}
+        for rows.Next() {
+                var t sql.NullString; var cnt sql.NullInt64
+                rows.Scan(&t, &cnt)
+                byType[t.String] = cnt.Int64
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{
+                "openCount": openCount.Int64, "mineCount": mineCount.Int64,
+                "todayCount": todayCount.Int64, "urgentCount": urgentCount.Int64,
+                "byType": byType,
+        })
+}
+
+// ===== ADMIN: DASHBOARD STATS =====
+func HandleAdminDashboardStats(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.Admin { writeErr(w, 403, "غير مصرح"); return }
+        var todayOrders, activeOrders, onlineDrivers, totalDrivers, openTickets, totalCustomers, totalRestaurants sql.NullInt64
+        var todayRevenue, platformMargin sql.NullFloat64
+        DB.QueryRow("SELECT COUNT(*) FROM orders WHERE date(created_at) = date('now')").Scan(&todayOrders)
+        DB.QueryRow("SELECT COUNT(*) FROM orders WHERE status IN ('accepted','preparing','ready','assigned','picked_up','on_the_way','delivering')").Scan(&activeOrders)
+        DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_online = 1 AND location_updated_at > datetime('now', '-60 seconds')").Scan(&onlineDrivers)
+        DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_active = 1").Scan(&totalDrivers)
+        DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'").Scan(&openTickets)
+        DB.QueryRow("SELECT COUNT(*) FROM users WHERE is_admin = 0").Scan(&totalCustomers)
+        DB.QueryRow("SELECT COUNT(*) FROM restaurants").Scan(&totalRestaurants)
+        DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE status = 'delivered' AND date(created_at) = date('now')").Scan(&todayRevenue)
+        DB.QueryRow("SELECT COALESCE(SUM(platform_margin), 0) FROM orders WHERE status = 'delivered' AND date(created_at) = date('now')").Scan(&platformMargin)
+        // Last 7 days
+        rows, _ := DB.Query("SELECT date(created_at) AS d, COUNT(*) AS c, COALESCE(SUM(subtotal), 0) AS r FROM orders WHERE created_at >= datetime('now', '-7 days') GROUP BY date(created_at) ORDER BY d ASC")
+        var daily []map[string]interface{}
+        for rows.Next() {
+                var d sql.NullString; var cnt sql.NullInt64; var r sql.NullFloat64
+                rows.Scan(&d, &cnt, &r)
+                daily = append(daily, map[string]interface{}{"date": d.String, "count": cnt.Int64, "revenue": r.Float64})
+        }
+        rows.Close()
+        // Orders by status
+        stRows, _ := DB.Query("SELECT status, COUNT(*) AS c FROM orders WHERE date(created_at) = date('now') GROUP BY status")
+        byStatus := map[string]int64{}
+        for stRows.Next() {
+                var s sql.NullString; var cnt sql.NullInt64
+                stRows.Scan(&s, &cnt)
+                byStatus[s.String] = cnt.Int64
+        }
+        stRows.Close()
+        writeJSON(w, 200, map[string]interface{}{
+                "todayOrders": todayOrders.Int64, "activeOrders": activeOrders.Int64,
+                "onlineDrivers": onlineDrivers.Int64, "totalDrivers": totalDrivers.Int64,
+                "openTickets": openTickets.Int64, "totalCustomers": totalCustomers.Int64, "totalRestaurants": totalRestaurants.Int64,
+                "todayRevenue": todayRevenue.Float64, "platformMargin": platformMargin.Float64,
+                "daily": daily, "byStatus": byStatus,
+        })
+}
+
+// ===== ADMIN: ALL ORDERS (with filters) =====
+func HandleAdminGetAllOrders(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.Admin { writeErr(w, 403, "غير مصرح"); return }
+        status := r.URL.Query().Get("status")
+        limit := 100
+        q := `SELECT o.id, o.order_number, o.customer_name, o.phone, o.location_address, o.status, o.subtotal, o.delivery_fee, o.total, o.driver_fee, o.platform_margin, o.created_at,
+                     r.name_ar AS restaurant_name, d.name AS driver_name, dt.name_ar AS driver_tier
+              FROM orders o LEFT JOIN restaurants r ON r.id = o.restaurant_id
+              LEFT JOIN drivers d ON d.id = o.driver_id
+              LEFT JOIN driver_tiers dt ON dt.id = d.tier_id`
+        args := []interface{}{}
+        if status != "" {
+                q += " WHERE o.status = ?"
+                args = append(args, status)
+        }
+        q += " ORDER BY o.created_at DESC LIMIT ?"
+        args = append(args, limit)
+        rows, _ := DB.Query(q, args...)
+        var orders []map[string]interface{}
+        for rows.Next() {
+                var id, on, cn, ph, la, st sql.NullString; var sub, df, tot, drvFee, margin sql.NullFloat64; var ct sql.NullString
+                var rName, dName, dTier sql.NullString
+                rows.Scan(&id, &on, &cn, &ph, &la, &st, &sub, &df, &tot, &drvFee, &margin, &ct, &rName, &dName, &dTier)
+                orders = append(orders, map[string]interface{}{
+                        "id": id.String, "orderNumber": on.String, "customerName": cn.String, "phone": ph.String,
+                        "locationAddress": la.String, "status": st.String,
+                        "subtotal": sub.Float64, "deliveryFee": df.Float64, "total": tot.Float64,
+                        "driverFee": drvFee.Float64, "platformMargin": margin.Float64,
+                        "createdAt": ct.String, "restaurantName": rName.String,
+                        "driverName": dName.String, "driverTier": dTier.String,
+                })
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"orders": orders})
+}
+
+// ===== ADMIN: RESTAURANTS CRUD =====
+func HandleAdminGetRestaurantsList(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.Admin { writeErr(w, 403, "غير مصرح"); return }
+        rows, _ := DB.Query(`SELECT r.id, r.name, r.name_ar, r.description_ar, r.image_url, r.cover_url, r.rating, r.rating_count,
+                                    r.delivery_time_min, r.delivery_time_max, r.delivery_fee, r.min_order, r.is_active, r.is_pro, r.cuisines,
+                                    r.lat, r.lng, r.zone_id, z.name_ar AS zone_name,
+                                    (SELECT COUNT(*) FROM menu_items WHERE restaurant_id = r.id) AS menu_count,
+                                    (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id AND date(created_at) = date('now')) AS today_orders
+                             FROM restaurants r LEFT JOIN delivery_zones z ON z.id = r.zone_id ORDER BY r.created_at ASC`)
+        var rests []map[string]interface{}
+        for rows.Next() {
+                var id, n, na, descAr, imgU, covU, cuisines sql.NullString
+                var rating sql.NullFloat64; var rc, dtMin, dtMax sql.NullInt64
+                var dFee, minOrd sql.NullFloat64; var active, pro sql.NullBool
+                var lat, lng sql.NullFloat64; var zid, zname sql.NullString
+                var menuCount, todayOrders sql.NullInt64
+                rows.Scan(&id, &n, &na, &descAr, &imgU, &covU, &rating, &rc, &dtMin, &dtMax, &dFee, &minOrd, &active, &pro, &cuisines, &lat, &lng, &zid, &zname, &menuCount, &todayOrders)
+                rests = append(rests, map[string]interface{}{
+                        "id": id.String, "name": n.String, "nameAr": na.String, "descriptionAr": descAr.String,
+                        "imageUrl": imgU.String, "coverUrl": covU.String,
+                        "rating": rating.Float64, "ratingCount": rc.Int64,
+                        "deliveryTimeMin": dtMin.Int64, "deliveryTimeMax": dtMax.Int64,
+                        "deliveryFee": dFee.Float64, "minOrder": minOrd.Float64,
+                        "isActive": active.Bool, "isPro": pro.Bool, "cuisines": cuisines.String,
+                        "lat": lat.Float64, "lng": lng.Float64, "zoneId": zid.String, "zoneName": zname.String,
+                        "menuCount": menuCount.Int64, "todayOrders": todayOrders.Int64,
+                })
+        }
+        rows.Close()
+        writeJSON(w, 200, map[string]interface{}{"restaurants": rests})
+}
+func HandleAdminCreateRestaurant(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.Admin { writeErr(w, 403, "غير مصرح"); return }
+        var b struct{ Name, NameAr, DescriptionAr, ImageURL, Cuisines, ZoneID string; Lat, Lng, DeliveryFee, MinOrder float64; DtMin, DtMax int; IsPro bool }
+        json.NewDecoder(r.Body).Decode(&b)
+        if b.NameAr == "" { writeErr(w, 400, "الاسم مطلوب"); return }
+        id := "rest-" + uuid.New().String()[:8]
+        DB.Exec(`INSERT INTO restaurants (id, name, name_ar, description_ar, image_url, cuisines, lat, lng, zone_id, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_active, is_pro, rating, rating_count)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 4.5, 0)`,
+                id, b.Name, b.NameAr, b.DescriptionAr, b.ImageURL, b.Cuisines, b.Lat, b.Lng, b.ZoneID, b.DtMin, b.DtMax, b.DeliveryFee, b.MinOrder, b.IsPro)
+        // Create merchant account for this restaurant with default phone/password
+        var phone sql.NullString
+        DB.QueryRow("SELECT phone FROM merchants ORDER BY created_at DESC LIMIT 1").Scan(&phone)
+        // unique phone
+        newPhone := "01200000099"
+        mID := "merch-" + id
+        hash, _ := HashPassword("123456")
+        DB.Exec(`INSERT INTO merchants (id, restaurant_id, name, phone, password_hash, is_active, must_change_password)
+                 VALUES (?, ?, ?, ?, ?, 1, 1)`, mID, id, b.NameAr + " Manager", newPhone, hash)
+        writeJSON(w, 201, map[string]interface{}{"id": id, "merchantPhone": newPhone, "merchantPassword": "123456"})
+}
+func HandleAdminUpdateRestaurant(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.Admin { writeErr(w, 403, "غير مصرح"); return }
+        id := r.PathValue("id")
+        var b struct{ Name, NameAr, DescriptionAr, ImageURL, Cuisines, ZoneID string; Lat, Lng, DeliveryFee, MinOrder float64; DtMin, DtMax int; IsPro, IsActive *bool }
+        json.NewDecoder(r.Body).Decode(&b)
+        DB.Exec(`UPDATE restaurants SET
+                 name = COALESCE(NULLIF(?, ''), name),
+                 name_ar = COALESCE(NULLIF(?, ''), name_ar),
+                 description_ar = COALESCE(NULLIF(?, ''), description_ar),
+                 image_url = COALESCE(NULLIF(?, ''), image_url),
+                 cuisines = COALESCE(NULLIF(?, ''), cuisines),
+                 lat = COALESCE(NULLIF(?, 0), lat),
+                 lng = COALESCE(NULLIF(?, 0), lng),
+                 zone_id = COALESCE(NULLIF(?, ''), zone_id),
+                 delivery_time_min = COALESCE(NULLIF(?, 0), delivery_time_min),
+                 delivery_time_max = COALESCE(NULLIF(?, 0), delivery_time_max),
+                 delivery_fee = COALESCE(NULLIF(?, 0), delivery_fee),
+                 min_order = COALESCE(NULLIF(?, 0), min_order)
+                 WHERE id = ?`,
+                b.Name, b.NameAr, b.DescriptionAr, b.ImageURL, b.Cuisines, b.Lat, b.Lng, b.ZoneID, b.DtMin, b.DtMax, b.DeliveryFee, b.MinOrder, id)
+        if b.IsPro != nil { DB.Exec("UPDATE restaurants SET is_pro = ? WHERE id = ?", *b.IsPro, id) }
+        if b.IsActive != nil { DB.Exec("UPDATE restaurants SET is_active = ? WHERE id = ?", *b.IsActive, id) }
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+func HandleAdminDeleteRestaurant(w http.ResponseWriter, r *http.Request) {
+        c := GetUser(r)
+        if c == nil || !c.Admin { writeErr(w, 403, "غير مصرح"); return }
+        DB.Exec("UPDATE restaurants SET is_active = 0 WHERE id = ?", r.PathValue("id"))
+        writeJSON(w, 200, map[string]interface{}{"success": true})
+}
+
 // ===== MAIN =====
 func main() {
         if err := InitDB(); err != nil { log.Fatalf("❌ DB: %v", err) }
@@ -2047,6 +2926,56 @@ func main() {
         mux.Handle("PATCH /api/admin/support/tickets/{id}/resolve", AuthMW(AdminMW(http.HandlerFunc(HandleAdminResolveTicket))))
         mux.Handle("POST /api/admin/support/tickets/{id}/messages", AuthMW(AdminMW(http.HandlerFunc(HandleAdminSendMessage))))
         mux.Handle("POST /api/admin/support/tickets/{id}/cancel-order", AuthMW(AdminMW(http.HandlerFunc(HandleAdminCancelOrder))))
+
+        // ===== Merchant Auth =====
+        mux.HandleFunc("POST /api/merchant/auth/login", HandleMerchantLogin)
+        mux.Handle("POST /api/merchant/auth/change-password", MerchantAuthMW(http.HandlerFunc(HandleMerchantChangePassword)))
+        mux.Handle("GET /api/merchant/me", MerchantAuthMW(http.HandlerFunc(HandleMerchantMe)))
+
+        // ===== Merchant: Orders =====
+        mux.Handle("GET /api/merchant/orders", MerchantAuthMW(http.HandlerFunc(HandleMerchantGetOrders)))
+        mux.Handle("GET /api/merchant/orders/{id}/items", MerchantAuthMW(http.HandlerFunc(HandleMerchantGetOrderItems)))
+        mux.Handle("PATCH /api/merchant/orders/{id}/status", MerchantAuthMW(http.HandlerFunc(HandleMerchantUpdateOrderStatus)))
+
+        // ===== Merchant: Menu =====
+        mux.Handle("GET /api/merchant/menu", MerchantAuthMW(http.HandlerFunc(HandleMerchantGetMenu)))
+        mux.Handle("POST /api/merchant/menu/items", MerchantAuthMW(http.HandlerFunc(HandleMerchantCreateMenuItem)))
+        mux.Handle("PATCH /api/merchant/menu/items/{id}", MerchantAuthMW(http.HandlerFunc(HandleMerchantUpdateMenuItem)))
+        mux.Handle("DELETE /api/merchant/menu/items/{id}", MerchantAuthMW(http.HandlerFunc(HandleMerchantDeleteMenuItem)))
+
+        // ===== Merchant: Store =====
+        mux.Handle("GET /api/merchant/hours", MerchantAuthMW(http.HandlerFunc(HandleMerchantGetHours)))
+        mux.Handle("PUT /api/merchant/hours", MerchantAuthMW(http.HandlerFunc(HandleMerchantUpdateHours)))
+        mux.Handle("PATCH /api/merchant/pause", MerchantAuthMW(http.HandlerFunc(HandleMerchantTogglePause)))
+        mux.Handle("GET /api/merchant/stats", MerchantAuthMW(http.HandlerFunc(HandleMerchantStats)))
+        mux.Handle("GET /api/merchant/scheduled-orders", MerchantAuthMW(http.HandlerFunc(HandleMerchantGetScheduledOrders)))
+
+        // ===== Support Agent Auth =====
+        mux.HandleFunc("POST /api/agent/auth/login", HandleAgentLogin)
+        mux.Handle("GET /api/agent/me", AgentAuthMW(http.HandlerFunc(HandleAgentMe)))
+
+        // ===== Agent: Tickets =====
+        mux.Handle("GET /api/agent/tickets", AgentAuthMW(http.HandlerFunc(HandleAgentGetTickets)))
+        mux.Handle("GET /api/agent/tickets/{id}", AgentAuthMW(http.HandlerFunc(HandleAgentGetTicket)))
+        mux.Handle("POST /api/agent/tickets/{id}/assign", AgentAuthMW(http.HandlerFunc(HandleAgentAssignTicket)))
+        mux.Handle("PATCH /api/agent/tickets/{id}/priority", AgentAuthMW(http.HandlerFunc(HandleAgentSetTicketPriority)))
+        mux.Handle("POST /api/agent/tickets/{id}/messages", AgentAuthMW(http.HandlerFunc(HandleAgentSendMessage)))
+        mux.Handle("PATCH /api/agent/tickets/{id}/resolve", AgentAuthMW(http.HandlerFunc(HandleAgentResolveTicket)))
+        mux.Handle("POST /api/agent/tickets/{id}/cancel-order", AgentAuthMW(http.HandlerFunc(HandleAgentCancelOrder)))
+
+        // ===== Agent: Search & Lookup =====
+        mux.Handle("GET /api/agent/search", AgentAuthMW(http.HandlerFunc(HandleAgentSearch)))
+        mux.Handle("GET /api/agent/orders/{id}", AgentAuthMW(http.HandlerFunc(HandleAgentGetOrder)))
+        mux.Handle("GET /api/agent/drivers/{id}", AgentAuthMW(http.HandlerFunc(HandleAgentGetDriver)))
+        mux.Handle("GET /api/agent/stats", AgentAuthMW(http.HandlerFunc(HandleAgentStats)))
+
+        // ===== Admin: Dashboard + Orders + Restaurants =====
+        mux.Handle("GET /api/admin/dashboard", AuthMW(AdminMW(http.HandlerFunc(HandleAdminDashboardStats))))
+        mux.Handle("GET /api/admin/orders", AuthMW(AdminMW(http.HandlerFunc(HandleAdminGetAllOrders))))
+        mux.Handle("GET /api/admin/restaurants", AuthMW(AdminMW(http.HandlerFunc(HandleAdminGetRestaurantsList))))
+        mux.Handle("POST /api/admin/restaurants", AuthMW(AdminMW(http.HandlerFunc(HandleAdminCreateRestaurant))))
+        mux.Handle("PATCH /api/admin/restaurants/{id}", AuthMW(AdminMW(http.HandlerFunc(HandleAdminUpdateRestaurant))))
+        mux.Handle("DELETE /api/admin/restaurants/{id}", AuthMW(AdminMW(http.HandlerFunc(HandleAdminDeleteRestaurant))))
 
         handler := cors.New(cors.Options{AllowedOrigins: []string{"*"}, AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}, AllowedHeaders: []string{"*"}, AllowCredentials: true}).Handler(mux)
 
