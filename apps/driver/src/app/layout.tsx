@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -26,6 +28,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className={`${cairo.variable} font-cairo antialiased bg-white text-black`}>
         {children}
+        <Toaster />
+        <SonnerToaster position="top-center" />
       </body>
     </html>
   );

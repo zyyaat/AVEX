@@ -1,101 +1,153 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Package, Clock, MapPin, Navigation, CheckCircle2, Bike,
-  TrendingUp, Star, Power, User, ArrowRight, Loader2, X
+  Bike, Power, MapPin, Clock, TrendingUp, Star, Package,
+  Zap, AlertCircle, Loader2, Navigation
 } from 'lucide-react'
-
-// Mock driver state - will be replaced with real API
-type DriverState = 'offline' | 'online' | 'delivering'
-type OrderStatus = 'pending' | 'accepted' | 'picked_up' | 'delivering' | 'delivered'
-
-interface DeliveryOrder {
-  id: string
-  orderNumber: string
-  customerName: string
-  phone: string
-  restaurantName: string
-  address: string
-  locationUrl: string
-  items: { name: string; quantity: number }[]
-  total: number
-  deliveryFee: number
-  status: OrderStatus
-  createdAt: string
-}
-
-// Mock data - will be replaced with real API calls
-const MOCK_ORDERS: DeliveryOrder[] = [
-  {
-    id: '1', orderNumber: 'AV123456789', customerName: 'أحمد محمد', phone: '01012345678',
-    restaurantName: 'برجر هاوس', address: 'حي الزهور، شارع 5، مبنى 12',
-    locationUrl: 'https://www.google.com/maps?q=30.0444,31.2357',
-    items: [{ name: 'برغر كلاسيكي', quantity: 2 }, { name: 'بطاطس مقلية', quantity: 1 }],
-    total: 30.97, deliveryFee: 3.99, status: 'pending', createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2', orderNumber: 'AV123456790', customerName: 'سارة علي', phone: '01098765432',
-    restaurantName: 'بيتزا بالاس', address: 'المعادي، شارع 9، عمارة 45',
-    locationUrl: 'https://www.google.com/maps?q=30.0500,31.2400',
-    items: [{ name: 'بيتزا مارغريتا', quantity: 1 }, { name: 'كوكا كولا', quantity: 2 }],
-    total: 20.97, deliveryFee: 4.99, status: 'pending', createdAt: new Date().toISOString(),
-  },
-]
+import { useAuth } from '@/store/auth'
+import { useDriver } from '@/store/driver'
+import { driverAPI } from '@/lib/api'
+import { BottomTabBar } from '@/components/BottomTabBar'
+import { TierBadge } from '@/components/TierBadge'
+import { OfferModal } from '@/components/OfferModal'
+import { ActiveDelivery } from '@/components/ActiveDelivery'
+import { toast } from 'sonner'
 
 export default function DriverHome() {
-  const [driverState, setDriverState] = useState<DriverState>('offline')
-  const [activeOrder, setActiveOrder] = useState<DeliveryOrder | null>(null)
-  const [availableOrders, setAvailableOrders] = useState<DeliveryOrder[]>([])
-  const [earnings, setEarnings] = useState(0)
-  const [deliveredCount, setDeliveredCount] = useState(0)
+  const router = useRouter()
+  const { isAuthenticated, mustChangePassword, setMustChangePassword, logout } = useAuth()
+  const {
+    driver, offers, activeOrder,
+    fetchMe, setOnline, updateLocation, refreshOffers, refreshActiveOrder, clear,
+  } = useDriver()
+  const [bootChecked, setBootChecked] = useState(false)
+  const [togglingOnline, setTogglingOnline] = useState(false)
+  const [activeOffer, setActiveOffer] = useState<string | null>(null)
+  const locationIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const offersIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const activeIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Load available orders when online
+  // Boot: check auth + load driver
   useEffect(() => {
-    if (driverState === 'online') {
-      const timer = setTimeout(() => setAvailableOrders(MOCK_ORDERS), 0)
-      return () => clearTimeout(timer)
+    if (!isAuthenticated) {
+      router.replace('/login')
+      return
     }
-  }, [driverState])
+    setBootChecked(true)
+    fetchMe()
+  }, [isAuthenticated, router, fetchMe])
 
-  const toggleOnline = () => {
-    setDriverState(prev => prev === 'offline' ? 'online' : 'offline')
+  // Change password prompt
+  useEffect(() => {
+    if (mustChangePassword) {
+      router.push('/profile?change-password=1')
+    }
+  }, [mustChangePassword, router])
+
+  // Watch GPS + send to backend when online
+  useEffect(() => {
+    if (!driver?.isOnline) {
+      if (locationIntervalRef.current) {
+        clearInterval(locationIntervalRef.current)
+        locationIntervalRef.current = null
+      }
+      return
+    }
+    if (!navigator.geolocation) {
+      toast.error('المتصفح لا يدعم تحديد الموقع')
+      return
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        updateLocation(pos.coords.latitude, pos.coords.longitude)
+      },
+      (err) => {
+        // silent
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    )
+    // Fallback interval in case watchPosition doesn't fire
+    locationIntervalRef.current = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => updateLocation(pos.coords.latitude, pos.coords.longitude),
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 5000 }
+      )
+    }, 5000)
+    return () => {
+      navigator.geolocation.clearWatch(watchId)
+      if (locationIntervalRef.current) clearInterval(locationIntervalRef.current)
+    }
+  }, [driver?.isOnline, updateLocation])
+
+  // Poll offers when online and no active order
+  useEffect(() => {
+    if (!driver?.isOnline || activeOrder) {
+      if (offersIntervalRef.current) {
+        clearInterval(offersIntervalRef.current)
+        offersIntervalRef.current = null
+      }
+      return
+    }
+    refreshOffers()
+    offersIntervalRef.current = setInterval(refreshOffers, 3000)
+    return () => {
+      if (offersIntervalRef.current) clearInterval(offersIntervalRef.current)
+    }
+  }, [driver?.isOnline, activeOrder, refreshOffers])
+
+  // Poll active order
+  useEffect(() => {
+    if (!activeOrder) {
+      if (activeIntervalRef.current) {
+        clearInterval(activeIntervalRef.current)
+        activeIntervalRef.current = null
+      }
+      return
+    }
+    activeIntervalRef.current = setInterval(refreshActiveOrder, 5000)
+    return () => {
+      if (activeIntervalRef.current) clearInterval(activeIntervalRef.current)
+    }
+  }, [activeOrder, refreshActiveOrder])
+
+  const handleToggleOnline = async () => {
+    setTogglingOnline(true)
+    try {
+      const next = !driver?.isOnline
+      await setOnline(next)
+      toast.success(next ? 'أنت الآن متصل — استقبال الطلبات مفعّل' : 'تم إيقاف الاستقبال')
+    } catch (err: any) {
+      toast.error(err.message || 'تعذّر التبديل')
+    } finally {
+      setTogglingOnline(false)
+    }
   }
 
-  const acceptOrder = (order: DeliveryOrder) => {
-    setActiveOrder({ ...order, status: 'accepted' })
-    setAvailableOrders(prev => prev.filter(o => o.id !== order.id))
-    setDriverState('delivering')
+  const handleLogout = () => {
+    clear()
+    logout()
+    router.replace('/login')
   }
 
-  const advanceStatus = () => {
-    if (!activeOrder) return
-    const flow: Record<OrderStatus, OrderStatus | null> = {
-      pending: 'accepted',
-      accepted: 'picked_up',
-      picked_up: 'delivering',
-      delivering: 'delivered',
-      delivered: null,
+  // Pick the most recent offer to show in modal
+  const currentOffer = activeOffer ? offers.find(o => o.offerId === activeOffer) : offers[0]
+  useEffect(() => {
+    if (offers.length > 0 && !activeOffer) {
+      setActiveOffer(offers[0].offerId)
     }
-    const next = flow[activeOrder.status]
-    if (next === null) {
-      // Order delivered
-      setEarnings(prev => prev + activeOrder.deliveryFee)
-      setDeliveredCount(prev => prev + 1)
-      setActiveOrder(null)
-      setDriverState('online')
-    } else {
-      setActiveOrder({ ...activeOrder, status: next })
-    }
-  }
+    if (offers.length === 0) setActiveOffer(null)
+  }, [offers, activeOffer])
 
-  const statusLabels: Record<OrderStatus, string> = {
-    pending: 'بانتظار القبول',
-    accepted: 'تم القبول - اذهب للمطعم',
-    picked_up: 'تم الاستلام - في الطريق',
-    delivering: 'في الطريق للعميل',
-    delivered: 'تم التوصيل',
+  if (!bootChecked) {
+    return (
+      <div className="min-h-dvh bg-white flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -105,148 +157,101 @@ export default function DriverHome() {
         <div className="flex items-center gap-2">
           <Bike className="w-5 h-5 text-black" />
           <span className="font-bold text-lg">AVEX Driver</span>
+          {driver?.tier && (
+            <TierBadge
+              nameAr={driver.tier.nameAr}
+              color={driver.tier.color}
+              sortOrder={driver.tier.sortOrder}
+              size="sm"
+            />
+          )}
         </div>
         <button
-          onClick={toggleOnline}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-fluent ${
-            driverState === 'offline'
-              ? 'bg-gray-100 text-gray-500'
-              : 'bg-black text-white'
+          onClick={handleToggleOnline}
+          disabled={togglingOnline}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-fluent disabled:opacity-50 ${
+            driver?.isOnline ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'
           }`}
         >
-          <div className={`w-2 h-2 rounded-full ${driverState === 'offline' ? 'bg-gray-400' : 'bg-green-400 animate-pulse'}`} />
-          {driverState === 'offline' ? 'غير متصل' : 'متصل'}
+          {togglingOnline ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+            <div className={`w-2 h-2 rounded-full ${driver?.isOnline ? 'bg-white animate-pulse' : 'bg-gray-400'}`} />
+          )}
+          {driver?.isOnline ? 'متصل' : 'غير متصل'}
           <Power className="w-3.5 h-3.5" />
         </button>
       </header>
 
-      <div className="container mx-auto px-4 py-4 max-w-md">
+      <div className="container mx-auto px-4 py-4 max-w-md pb-20 sm:pb-4">
         {/* Stats bar */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-            <p className="text-lg font-bold text-black">{earnings.toFixed(2)}</p>
-            <p className="text-[10px] text-gray-400">الأرباح (ج.م)</p>
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-2.5 text-center">
+            <p className="text-base font-bold text-black">{driver?.stats.completedOrders ?? 0}</p>
+            <p className="text-[9px] text-gray-400">مكتمل</p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-            <p className="text-lg font-bold text-black">{deliveredCount}</p>
-            <p className="text-[10px] text-gray-400">طلبات مكتملة</p>
+          <div className="bg-white rounded-lg border border-gray-200 p-2.5 text-center">
+            <p className="text-base font-bold text-black">{driver?.stats.acceptanceRate.toFixed(0) ?? 0}%</p>
+            <p className="text-[9px] text-gray-400">قبول</p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-            <p className="text-lg font-bold text-black">{availableOrders.length}</p>
-            <p className="text-[10px] text-gray-400">طلبات متاحة</p>
+          <div className="bg-white rounded-lg border border-gray-200 p-2.5 text-center">
+            <p className="text-base font-bold text-black">{driver?.stats.rating.toFixed(1) ?? '0.0'}</p>
+            <p className="text-[9px] text-gray-400">تقييم</p>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-2.5 text-center">
+            <p className="text-base font-bold text-black">{driver?.stats.totalEarnings.toFixed(0) ?? 0}</p>
+            <p className="text-[9px] text-gray-400">ج.م</p>
           </div>
         </div>
 
         {/* Active delivery */}
-        {activeOrder && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg border border-gray-200 p-4 mb-4"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-sm">التوصيل الحالي</h3>
-              <span className="text-xs font-medium bg-black text-white px-2 py-0.5 rounded">
-                {statusLabels[activeOrder.status]}
-              </span>
-            </div>
+        {activeOrder && <ActiveDelivery />}
 
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" />
-                <span className="font-medium">{activeOrder.customerName}</span>
-                <a href={`tel:${activeOrder.phone}`} className="text-gray-400 text-xs mr-auto" dir="ltr">{activeOrder.phone}</a>
-              </div>
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500 text-xs">{activeOrder.items.map(i => `${i.quantity}× ${i.name}`).join(', ')}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                <span className="text-gray-500 text-xs flex-1">{activeOrder.address}</span>
-              </div>
-            </div>
-
-            {/* Map link */}
-            <a
-              href={activeOrder.locationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 flex items-center justify-between gap-2 bg-gray-50 rounded-lg p-2.5 border border-gray-200 hover:border-gray-400 transition-fluent"
-            >
-              <span className="text-sm font-medium flex items-center gap-1.5">
-                <Navigation className="w-4 h-4" />
-                افتح الخريطة
-              </span>
-              <ArrowRight className="w-4 h-4 text-gray-400" />
-            </a>
-
-            {/* Action button */}
-            <button
-              onClick={advanceStatus}
-              className="w-full mt-3 h-11 rounded-lg bg-black hover:bg-gray-800 text-white text-sm font-medium flex items-center justify-center gap-2 transition-fluent"
-            >
-              {activeOrder.status === 'accepted' && <><Package className="w-4 h-4" /> وصلت للمطعم - استلم الطلب</>}
-              {activeOrder.status === 'picked_up' && <><Bike className="w-4 h-4" /> بدأت التوصيل</>}
-              {activeOrder.status === 'delivering' && <><CheckCircle2 className="w-4 h-4" /> تم التوصيل</>}
-            </button>
-          </motion.div>
-        )}
-
-        {/* Available orders */}
-        {driverState === 'online' && !activeOrder && (
+        {/* Available offers (only when no active order) */}
+        {!activeOrder && driver?.isOnline && (
           <div>
-            <h3 className="text-sm font-bold text-black mb-3">طلبات متاحة</h3>
-            {availableOrders.length === 0 ? (
+            <h3 className="text-sm font-bold text-black mb-3 flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              طلبات متاحة ({offers.length})
+            </h3>
+            {offers.length === 0 ? (
               <div className="text-center py-16">
-                <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
                   <Package className="w-6 h-6 text-gray-300" />
                 </div>
-                <p className="text-sm text-gray-500">لا توجد طلبات متاحة حالياً</p>
-                <p className="text-xs text-gray-400 mt-1">سيظهر هنا أي طلب جديد</p>
+                <p className="text-sm text-gray-500">في انتظار الطلبات...</p>
+                <p className="text-xs text-gray-400 mt-1">سيظهر أي طلب جديد هنا فور قبول المطعم</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {availableOrders.map(order => (
-                  <motion.div
-                    key={order.id}
+                {offers.map((offer) => (
+                  <motion.button
+                    key={offer.offerId}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-lg border border-gray-200 p-4"
+                    onClick={() => setActiveOffer(offer.offerId)}
+                    className="w-full text-right bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-400 transition-fluent"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="font-bold text-sm">{order.restaurantName}</p>
-                        <p className="text-xs text-gray-400" dir="ltr">{order.orderNumber}</p>
+                        <p className="font-bold text-sm">{offer.restaurantName}</p>
+                        <p className="text-xs text-gray-400" dir="ltr">{offer.orderNumber}</p>
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-sm">{order.deliveryFee.toFixed(2)} ج.م</p>
+                        <p className="font-bold text-sm">{offer.driverFee.toFixed(2)} ج.م</p>
                         <p className="text-[10px] text-gray-400">عمولة التوصيل</p>
                       </div>
                     </div>
-
                     <div className="space-y-1 text-xs text-gray-500 mb-3">
                       <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5" />
-                        {order.customerName}
+                        <MapPin className="w-3.5 h-3.5" /> {offer.zoneName} — {Math.round(offer.distanceM)} م منك
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {order.address}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {order.items.length} أصناف • {order.total.toFixed(2)} ج.م
+                        <Clock className="w-3.5 h-3.5" /> {offer.itemsSummary}
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => acceptOrder(order)}
-                      className="w-full h-10 rounded-lg bg-black hover:bg-gray-800 text-white text-sm font-medium transition-fluent"
-                    >
-                      قبول الطلب
-                    </button>
-                  </motion.div>
+                    <div className="bg-black text-white text-center py-2 rounded-lg text-xs font-bold">
+                      اضغط لعرض التفاصيل والقبول
+                    </div>
+                  </motion.button>
                 ))}
               </div>
             )}
@@ -254,22 +259,64 @@ export default function DriverHome() {
         )}
 
         {/* Offline state */}
-        {driverState === 'offline' && (
+        {!driver?.isOnline && !activeOrder && (
           <div className="text-center py-16">
-            <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <Power className="w-8 h-8 text-gray-300" />
             </div>
             <h3 className="font-bold text-black mb-1">أنت غير متصل</h3>
             <p className="text-sm text-gray-400 mb-4">اضغط للاتصال وبدء استقبال الطلبات</p>
             <button
-              onClick={toggleOnline}
-              className="px-6 h-11 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition-fluent"
+              onClick={handleToggleOnline}
+              disabled={togglingOnline}
+              className="px-6 h-11 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition-fluent inline-flex items-center gap-2"
             >
+              {togglingOnline ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
               ابدأ العمل
             </button>
           </div>
         )}
+
+        {/* Next tier progress */}
+        {driver?.nextTier && (
+          <div className="mt-6 bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-500">مستواك الحالي</span>
+              <TierBadge
+                nameAr={driver.tier.nameAr}
+                color={driver.tier.color}
+                sortOrder={driver.tier.sortOrder}
+                size="sm"
+              />
+            </div>
+            <p className="text-sm font-bold mb-2">المستوى التالي: {driver.nextTier.nameAr}</p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">الطلبات المكتملة</span>
+                <span className="font-bold">{driver.stats.completedOrders} / {driver.nextTier.minLifetimeOrders}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">نسبة القبول</span>
+                <span className="font-bold">{driver.stats.acceptanceRate.toFixed(0)}% / {driver.nextTier.minAcceptanceRate}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">التقييم</span>
+                <span className="font-bold">{driver.stats.rating.toFixed(1)} / {driver.nextTier.minCustomerRating}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Offer Modal */}
+      {currentOffer && (
+        <OfferModal
+          offer={currentOffer}
+          onClose={() => setActiveOffer(null)}
+        />
+      )}
+
+      <BottomTabBar />
     </div>
   )
 }

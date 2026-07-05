@@ -1,19 +1,27 @@
 #!/bin/bash
+# AVEX Driver App - start script
+# Starts Go backend (port 8080) + Driver Next.js app (port 3001)
+
 set -e
-echo "🚀 Starting AVEX - Driver App"
-
-# Start Go backend
 cd /home/z/my-project/backend
-pkill -f avex-api 2>/dev/null; sleep 1
+pkill -f avex-api 2>/dev/null || true
+sleep 1
 setsid nohup ./avex-api > /tmp/avex-api.log 2>&1 < /dev/null &
-sleep 3
-if curl -s http://localhost:8080/api/health > /dev/null 2>&1; then
-  echo "✅ Go backend ready (8080)"
-else
-  echo "⚠️ Go backend not responding"
-fi
+echo "✅ Backend started on :8080"
 
-# Start Next.js driver
+sleep 2
 cd /home/z/my-project/apps/driver
-echo "🌐 Starting Driver app (3001)..."
-exec bun run dev -- -p 3001
+pkill -f "next dev -p 3001" 2>/dev/null || true
+sleep 1
+setsid nohup npx next dev -p 3001 > /tmp/avex-driver.log 2>&1 < /dev/null &
+echo "✅ Driver app started on :3001"
+
+sleep 5
+echo ""
+echo "🛵 AVEX Driver ready:"
+echo "   Backend: http://localhost:8080"
+echo "   Driver:  http://localhost:3001"
+echo ""
+echo "📋 Demo drivers:"
+echo "   01100000001 / 123456 (Starter tier)"
+echo "   01100000002 / 123456 (Silver tier)"
