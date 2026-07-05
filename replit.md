@@ -54,11 +54,9 @@ If `.replit` is missing or `run` is empty, **STOP and ask the user which part to
 
 ### ✅ ALWAYS do these:
 1. Only edit files inside your assigned part's folder.
-2. Read `PROJECT_PLAN.md` for the full architecture before making non-trivial changes.
-3. Read `REPLIT.md` for deployment details.
-4. Use the existing run scripts in `scripts/` — do not invent new ones.
-5. Ask the user before making structural changes.
-6. If you're unsure about anything, **STOP and ask** — do not guess.
+2. Use the existing run scripts in `scripts/` — do not invent new ones.
+3. Ask the user before making structural changes.
+4. If you're unsure about anything, **STOP and ask** — do not guess.
 
 ---
 
@@ -483,12 +481,11 @@ When adding new pages/components:
 | Seed data | `backend/internal/shared/seed.go` |
 | API routes | `backend/internal/*/routes.go` |
 | Algorithms | `backend/internal/dispatch/` (dispatch.go, pricing.go, tier.go) |
-| Full architecture doc | `PROJECT_PLAN.md` |
-| Deployment guide | `REPLIT.md` |
 | Frontend API clients | `apps/<app>/src/lib/api.ts` |
 | Design system (CSS) | `apps/<app>/src/app/globals.css` |
 | Replit config | `.replit` |
 | Nix packages | `replit.nix` |
+| Agent instructions | `replit.md` (this file) |
 
 ---
 

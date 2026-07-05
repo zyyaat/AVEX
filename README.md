@@ -54,7 +54,7 @@ avex/
 │   └── start-all.sh                    ← يشغّل الكل محلياً
 ├── .replit                             ← إعدادات Replit
 ├── replit.nix                          ← حزم Nix
-└── REPLIT.md                           ← دليل النشر الكامل
+└── replit.md                           ← تعليمات Replit Agent (دليل البناء الكامل)
 ```
 
 ## 🚀 التشغيل المحلي
@@ -86,7 +86,7 @@ bash scripts/start-all.sh
 
 **كل تطبيق على Replit منفصل** — 6 Replits إجمالاً.
 
-اطلع على **[REPLIT.md](./REPLIT.md)** للدليل الكامل خطوة بخطوة.
+اطلع على **[replit.md](./replit.md)** للدليل الكامل خطوة بخطوة (تعليمات Replit Agent).
 
 ### باختصار:
 1. استورد الـ repo على Replit
