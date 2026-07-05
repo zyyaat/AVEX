@@ -1,14 +1,14 @@
 package admin
 
 import (
-	"database/sql"
-	"encoding/json"
-	"fmt"
-	"net/http"
+        "database/sql"
+        "encoding/json"
+        "fmt"
+        "net/http"
 
-	"avex-backend/internal/shared"
+        "avex-backend/internal/shared"
 
-	"github.com/google/uuid"
+        "github.com/google/uuid"
 )
 
 var _ = sql.NullString{}
@@ -136,7 +136,7 @@ func HandleAdminCreateZone(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.NameAr == "" { shared.WriteErr(w, 400, "الاسم مطلوب"); return }
         id := "zone-" + uuid.New().String()[:8]
-        shared.DB.Exec("INSERT INTO delivery_zones (id, name, name_ar, center_lat, center_lng, radius_m, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)", id, b.Name, b.NameAr, b.CenterLat, b.CenterLng, b.RadiusM)
+        shared.DB.Exec("INSERT INTO delivery_zones (id, name, name_ar, center_lat, center_lng, radius_m, is_active) VALUES (?, ?, ?, ?, ?, ?, TRUE)", id, b.Name, b.NameAr, b.CenterLat, b.CenterLng, b.RadiusM)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
 func HandleAdminUpdateZone(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func HandleAdminUpdateZone(w http.ResponseWriter, r *http.Request) {
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 func HandleAdminDeleteZone(w http.ResponseWriter, r *http.Request) {
-        shared.DB.Exec("UPDATE delivery_zones SET is_active = 0 WHERE id = ?", r.PathValue("id"))
+        shared.DB.Exec("UPDATE delivery_zones SET is_active = FALSE WHERE id = ?", r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
@@ -183,7 +183,7 @@ func HandleAdminCreateTier(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(r.Body).Decode(&b)
         if b.Code == "" || b.NameAr == "" { shared.WriteErr(w, 400, "الكود والاسم مطلوبان"); return }
         id := "tier-" + b.Code
-        shared.DB.Exec("INSERT INTO driver_tiers (id, code, name_ar, sort_order, color, is_active) VALUES (?, ?, ?, ?, ?, 1)", id, b.Code, b.NameAr, b.SortOrder, b.Color)
+        shared.DB.Exec("INSERT INTO driver_tiers (id, code, name_ar, sort_order, color, is_active) VALUES (?, ?, ?, ?, ?, TRUE)", id, b.Code, b.NameAr, b.SortOrder, b.Color)
         shared.DB.Exec("INSERT INTO tier_thresholds (id, tier_id) VALUES (?, ?)", "th-"+id, id)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
 }
@@ -235,7 +235,7 @@ func HandleAdminUpdateTierPrice(w http.ResponseWriter, r *http.Request) {
         var b struct{ BaseFee, PerKmFee, MinFee, MaxFee, FreeAbove float64; EstimatedMinutes int; IsActive *bool }
         json.NewDecoder(r.Body).Decode(&b)
         shared.DB.Exec(`INSERT INTO tier_zone_prices (id, tier_id, zone_id, base_fee, per_km_fee, min_fee, max_fee, free_above, estimated_minutes, is_active, updated_at)
-                 VALUES ('tp-'||?||'-'||?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                 VALUES ('tp-'||?||'-'||?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, CURRENT_TIMESTAMP)
                  ON CONFLICT(tier_id, zone_id) DO UPDATE SET base_fee=excluded.base_fee, per_km_fee=excluded.per_km_fee,
                  min_fee=excluded.min_fee, max_fee=excluded.max_fee, free_above=excluded.free_above,
                  estimated_minutes=excluded.estimated_minutes, updated_at=CURRENT_TIMESTAMP`,
@@ -295,7 +295,7 @@ func HandleAdminVerifyApplication(w http.ResponseWriter, r *http.Request) {
         var starterID sql.NullString
         shared.DB.QueryRow("SELECT id FROM driver_tiers ORDER BY sort_order ASC LIMIT 1").Scan(&starterID)
         shared.DB.Exec(`INSERT INTO drivers (id, name, phone, password_hash, vehicle_type, license_number, national_id, tier_id, is_active, is_verified, must_change_password)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1)`, driverID, name.String, phone.String, hash, vt.String, licNum.String, natID.String, starterID.String)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE)`, driverID, name.String, phone.String, hash, vt.String, licNum.String, natID.String, starterID.String)
         shared.DB.Exec("INSERT INTO driver_stats (driver_id, period_starts) VALUES (?, CURRENT_TIMESTAMP)", driverID)
         shared.DB.Exec("UPDATE driver_applications SET status = 'verified', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?, driver_id = ? WHERE id = ?", c.UserID, driverID, appID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "driverId": driverID, "initialPassword": natID.String})
@@ -464,17 +464,17 @@ func HandleAdminDashboardStats(w http.ResponseWriter, r *http.Request) {
         if c == nil || !c.Admin { shared.WriteErr(w, 403, "غير مصرح"); return }
         var todayOrders, activeOrders, onlineDrivers, totalDrivers, openTickets, totalCustomers, totalRestaurants sql.NullInt64
         var todayRevenue, platformMargin sql.NullFloat64
-        shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE date(created_at) = date('now')").Scan(&todayOrders)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE").Scan(&todayOrders)
         shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE status IN ('accepted','preparing','ready','assigned','picked_up','on_the_way','delivering')").Scan(&activeOrders)
-        shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_online = 1 AND location_updated_at > datetime('now', '-60 seconds')").Scan(&onlineDrivers)
-        shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_active = 1").Scan(&totalDrivers)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_online = TRUE AND location_updated_at > " + shared.NowMinusSeconds(60)).Scan(&onlineDrivers)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM drivers WHERE is_active = TRUE").Scan(&totalDrivers)
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'").Scan(&openTickets)
-        shared.DB.QueryRow("SELECT COUNT(*) FROM users WHERE is_admin = 0").Scan(&totalCustomers)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM users WHERE is_admin = FALSE").Scan(&totalCustomers)
         shared.DB.QueryRow("SELECT COUNT(*) FROM restaurants").Scan(&totalRestaurants)
-        shared.DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE status = 'delivered' AND date(created_at) = date('now')").Scan(&todayRevenue)
-        shared.DB.QueryRow("SELECT COALESCE(SUM(platform_margin), 0) FROM orders WHERE status = 'delivered' AND date(created_at) = date('now')").Scan(&platformMargin)
+        shared.DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE status = 'delivered' AND DATE(created_at) = CURRENT_DATE").Scan(&todayRevenue)
+        shared.DB.QueryRow("SELECT COALESCE(SUM(platform_margin), 0) FROM orders WHERE status = 'delivered' AND DATE(created_at) = CURRENT_DATE").Scan(&platformMargin)
         // Last 7 days
-        rows, _ := shared.DB.Query("SELECT date(created_at) AS d, COUNT(*) AS c, COALESCE(SUM(subtotal), 0) AS r FROM orders WHERE created_at >= datetime('now', '-7 days') GROUP BY date(created_at) ORDER BY d ASC")
+        rows, _ := shared.DB.Query("SELECT DATE(created_at) AS d, COUNT(*) AS c, COALESCE(SUM(subtotal), 0) AS r FROM orders WHERE created_at >= " + shared.NowMinusDays(7) + " GROUP BY DATE(created_at) ORDER BY d ASC")
         var daily []map[string]interface{}
         for rows.Next() {
                 var d sql.NullString; var cnt sql.NullInt64; var r sql.NullFloat64
@@ -483,7 +483,7 @@ func HandleAdminDashboardStats(w http.ResponseWriter, r *http.Request) {
         }
         rows.Close()
         // Orders by status
-        stRows, _ := shared.DB.Query("SELECT status, COUNT(*) AS c FROM orders WHERE date(created_at) = date('now') GROUP BY status")
+        stRows, _ := shared.DB.Query("SELECT status, COUNT(*) AS c FROM orders WHERE DATE(created_at) = CURRENT_DATE GROUP BY status")
         byStatus := map[string]int64{}
         for stRows.Next() {
                 var s sql.NullString; var cnt sql.NullInt64
@@ -545,7 +545,7 @@ func HandleAdminGetRestaurantsList(w http.ResponseWriter, r *http.Request) {
                                     r.delivery_time_min, r.delivery_time_max, r.delivery_fee, r.min_order, r.is_active, r.is_pro, r.cuisines,
                                     r.lat, r.lng, r.zone_id, z.name_ar AS zone_name,
                                     (SELECT COUNT(*) FROM menu_items WHERE restaurant_id = r.id) AS menu_count,
-                                    (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id AND date(created_at) = date('now')) AS today_orders
+                                    (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id AND DATE(created_at) = CURRENT_DATE) AS today_orders
                              FROM restaurants r LEFT JOIN delivery_zones z ON z.id = r.zone_id ORDER BY r.created_at ASC`)
         var rests []map[string]interface{}
         for rows.Next() {
@@ -577,7 +577,7 @@ func HandleAdminCreateRestaurant(w http.ResponseWriter, r *http.Request) {
         if b.NameAr == "" { shared.WriteErr(w, 400, "الاسم مطلوب"); return }
         id := "rest-" + uuid.New().String()[:8]
         shared.DB.Exec(`INSERT INTO restaurants (id, name, name_ar, description_ar, image_url, cuisines, lat, lng, zone_id, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_active, is_pro, rating, rating_count)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 4.5, 0)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, 4.5, 0)`,
                 id, b.Name, b.NameAr, b.DescriptionAr, b.ImageURL, b.Cuisines, b.Lat, b.Lng, b.ZoneID, b.DtMin, b.DtMax, b.DeliveryFee, b.MinOrder, b.IsPro)
         // Create merchant account for this restaurant with default phone/password
         var phone sql.NullString
@@ -587,7 +587,7 @@ func HandleAdminCreateRestaurant(w http.ResponseWriter, r *http.Request) {
         mID := "merch-" + id
         hash, _ := shared.HashPassword("123456")
         shared.DB.Exec(`INSERT INTO merchants (id, restaurant_id, name, phone, password_hash, is_active, must_change_password)
-                 VALUES (?, ?, ?, ?, ?, 1, 1)`, mID, id, b.NameAr + " Manager", newPhone, hash)
+                 VALUES (?, ?, ?, ?, ?, TRUE, TRUE)`, mID, id, b.NameAr + " Manager", newPhone, hash)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id, "merchantPhone": newPhone, "merchantPassword": "123456"})
 }
 func HandleAdminUpdateRestaurant(w http.ResponseWriter, r *http.Request) {
@@ -618,18 +618,18 @@ func HandleAdminUpdateRestaurant(w http.ResponseWriter, r *http.Request) {
 func HandleAdminDeleteRestaurant(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r)
         if c == nil || !c.Admin { shared.WriteErr(w, 403, "غير مصرح"); return }
-        shared.DB.Exec("UPDATE restaurants SET is_active = 0 WHERE id = ?", r.PathValue("id"))
+        shared.DB.Exec("UPDATE restaurants SET is_active = FALSE WHERE id = ?", r.PathValue("id"))
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
 
 // HandleUpdateOrderStatus - admin updates order status directly
 func HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	var b struct{ Status string }
-	json.NewDecoder(r.Body).Decode(&b)
-	valid := map[string]bool{"new": true, "accepted": true, "preparing": true, "ready": true, "picked_up": true, "delivering": true, "delivered": true, "cancelled": true, "rejected": true}
-	if !valid[b.Status] { shared.WriteErr(w, 400, "حالة غير صالحة"); return }
-	shared.DB.Exec("UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", b.Status, id)
-	shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "status": b.Status})
+        id := r.PathValue("id")
+        var b struct{ Status string }
+        json.NewDecoder(r.Body).Decode(&b)
+        valid := map[string]bool{"new": true, "accepted": true, "preparing": true, "ready": true, "picked_up": true, "delivering": true, "delivered": true, "cancelled": true, "rejected": true}
+        if !valid[b.Status] { shared.WriteErr(w, 400, "حالة غير صالحة"); return }
+        shared.DB.Exec("UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", b.Status, id)
+        shared.WriteJSON(w, 200, map[string]interface{}{"success": true, "status": b.Status})
 }

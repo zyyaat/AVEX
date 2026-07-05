@@ -15,7 +15,7 @@ func Seed() {
 
         // Admin
         adminPass, _ := HashPassword("admin123")
-        DB.Exec("INSERT INTO users (id, name, phone, password_hash, is_admin) VALUES (?, ?, ?, ?, 1)", "admin-001", "مدير AVEX", "01000000000", adminPass)
+        DB.Exec("INSERT INTO users (id, name, phone, password_hash, is_admin) VALUES (?, ?, ?, ?, TRUE)", "admin-001", "مدير AVEX", "01000000000", adminPass)
 
         // Categories
         cats := []struct{ id, name, nameAr, icon string }{
@@ -36,7 +36,7 @@ func Seed() {
                 {"rest-5", "Fresh & Cold", "فريش آند كولد", "مشروبات طازجة وعصائر", "مشروبات, عصائر", 4.5, 134, 10, 20, 1.99, 0, false},
         }
         for _, r := range restaurants {
-                DB.Exec("INSERT INTO restaurants (id, name, name_ar, description_ar, cuisines, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_active, is_pro) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+                DB.Exec("INSERT INTO restaurants (id, name, name_ar, description_ar, cuisines, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_active, is_pro) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?)",
                         r.id, r.name, r.nameAr, r.descAr, r.cuisines, r.rating, r.rc, r.dtMin, r.dtMax, r.dFee, r.minOrd, r.isPro)
         }
 
@@ -72,7 +72,7 @@ func Seed() {
         }
         for i, it := range items {
                 id := fmt.Sprintf("item-%d", i+1)
-                DB.Exec("INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, '🍽️', ?, ?, 1, ?, ?, ?, ?, ?, ?)", id, it.name, it.nameAr, it.desc, it.descAr, it.price, it.img, it.popular, it.rating, it.rc, it.pt, it.cal, it.cat, it.rest)
+                DB.Exec("INSERT INTO menu_items (id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, '🍽️', ?, ?, TRUE, ?, ?, ?, ?, ?, ?)", id, it.name, it.nameAr, it.desc, it.descAr, it.price, it.img, it.popular, it.rating, it.rc, it.pt, it.cal, it.cat, it.rest)
         }
 
         // Coupons
@@ -85,7 +85,7 @@ func Seed() {
         for i, c := range coupons {
                 id := fmt.Sprintf("coupon-%d", i+1)
                 var maxD interface{}; if c.max > 0 { maxD = c.max }
-                DB.Exec("INSERT INTO coupons (id, code, description_ar, type, value, min_order, max_discount, is_active, used_count) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)", id, c.code, c.descAr, c.typ, c.val, c.min, maxD)
+                DB.Exec("INSERT INTO coupons (id, code, description_ar, type, value, min_order, max_discount, is_active, used_count) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, 0)", id, c.code, c.descAr, c.typ, c.val, c.min, maxD)
         }
         log.Println("✅ Seed done: 6 cats, 5 restaurants, 22 items, 4 coupons, 1 admin")
 
@@ -108,7 +108,7 @@ func SeedDriverSystem() {
                 {"zone-downtown", "Downtown", "وسط البلد", 30.0444, 31.2357, 3000},
         }
         for _, z := range zones {
-                DB.Exec("INSERT INTO delivery_zones (id, name, name_ar, center_lat, center_lng, radius_m, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)", z.id, z.name, z.nameAr, z.lat, z.lng, z.r)
+                DB.Exec("INSERT INTO delivery_zones (id, name, name_ar, center_lat, center_lng, radius_m, is_active) VALUES (?, ?, ?, ?, ?, ?, TRUE)", z.id, z.name, z.nameAr, z.lat, z.lng, z.r)
         }
 
         // Driver tiers (sort_order: 1=starter, 2=bronze, 3=silver, 4=gold)
@@ -119,7 +119,7 @@ func SeedDriverSystem() {
                 {"tier-gold", "gold", "ذهبي", "#000000", 4},
         }
         for _, t := range tiers {
-                DB.Exec("INSERT INTO driver_tiers (id, code, name_ar, sort_order, color, is_active) VALUES (?, ?, ?, ?, ?, 1)", t.id, t.code, t.nameAr, t.sort, t.color)
+                DB.Exec("INSERT INTO driver_tiers (id, code, name_ar, sort_order, color, is_active) VALUES (?, ?, ?, ?, ?, TRUE)", t.id, t.code, t.nameAr, t.sort, t.color)
         }
 
         // Tier thresholds
@@ -153,7 +153,7 @@ func SeedDriverSystem() {
                         p := matrix[t.code]
                         m := zoneMult[z.id]
                         DB.Exec(`INSERT INTO tier_zone_prices (id, tier_id, zone_id, base_fee, per_km_fee, min_fee, max_fee, free_above, estimated_minutes, is_active)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
                                 "tp-"+t.code+"-"+z.id, t.id, z.id,
                                 p.base*m, p.perKm*m, p.mn*m, p.mx*m, p.free, p.est)
                 }
@@ -210,7 +210,7 @@ func SeedMerchantAndAgentSystem() {
         hash, _ := HashPassword("123456")
         for _, m := range merchants {
                 DB.Exec(`INSERT INTO merchants (id, restaurant_id, name, phone, password_hash, is_active, must_change_password)
-                         VALUES (?, ?, ?, ?, ?, 1, 0)`, m.id, m.restID, m.name, m.phone, hash)
+                         VALUES (?, ?, ?, ?, ?, TRUE, FALSE)`, m.id, m.restID, m.name, m.phone, hash)
                 // Create store hours: 7 days, 10:00 - 23:00
                 for d := 0; d < 7; d++ {
                         shID := fmt.Sprintf("sh-%s-%d", m.restID, d)
@@ -225,7 +225,7 @@ func SeedMerchantAndAgentSystem() {
         }
         for _, a := range agents {
                 DB.Exec(`INSERT INTO support_agents (id, name, phone, email, password_hash, is_active, must_change_password)
-                         VALUES (?, ?, ?, ?, ?, 1, 0)`, a.id, a.name, a.phone, a.email, hash)
+                         VALUES (?, ?, ?, ?, ?, TRUE, FALSE)`, a.id, a.name, a.phone, a.email, hash)
         }
 
         log.Println("✅ Merchant+Agent seeded: 5 merchants (0120000000X, pass: 123456), 2 agents (01500000001/2)")

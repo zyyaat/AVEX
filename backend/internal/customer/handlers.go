@@ -74,7 +74,7 @@ func HandleMenu(w http.ResponseWriter, r *http.Request) {
                 rows.Scan(&id, &name, &nameAr, &icon, &imgURL, &so)
                 cat := map[string]interface{}{"id": id, "name": name, "nameAr": nameAr, "icon": icon, "imageUrl": nil, "order": so, "items": []map[string]interface{}{}}
                 if imgURL.Valid { cat["imageUrl"] = imgURL.String }
-                itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories FROM menu_items WHERE category_id = ? AND is_available = 1 ORDER BY price ASC", id)
+                itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories FROM menu_items WHERE category_id = ? AND is_available = TRUE ORDER BY price ASC", id)
                 for itemRows.Next() {
                         var m map[string]interface{} = make(map[string]interface{})
                         var mid, mn, mna, md, mda, mi string; var mp float64; var miu sql.NullString; var mp2, ma bool; var mr float64; var mrc, mpt, mcal int
@@ -102,7 +102,7 @@ func HandleValidateCoupon(w http.ResponseWriter, r *http.Request) {
         var b struct{ Code string; Subtotal float64 }
         json.NewDecoder(r.Body).Decode(&b)
         var typ string; var val, min float64; var maxD sql.NullFloat64; var active bool; var ul sql.NullInt64; var uc int; var descAr string
-        err := shared.DB.QueryRow("SELECT type, value, min_order, max_discount, is_active, usage_limit, used_count, description_ar FROM coupons WHERE code = ? AND is_active = 1", b.Code).Scan(&typ, &val, &min, &maxD, &active, &ul, &uc, &descAr)
+        err := shared.DB.QueryRow("SELECT type, value, min_order, max_discount, is_active, usage_limit, used_count, description_ar FROM coupons WHERE code = ? AND is_active = TRUE", b.Code).Scan(&typ, &val, &min, &maxD, &active, &ul, &uc, &descAr)
         if err != nil { shared.WriteErr(w, 404, "كوبون غير صالح"); return }
         if ul.Valid && int64(uc) >= ul.Int64 { shared.WriteErr(w, 400, "تم استخدام الكوبون للحد الأقصى"); return }
         if b.Subtotal < min { shared.WriteErr(w, 400, "الحد الأدنى "+strconv.FormatFloat(min, 'f', 2, 64)+" ج.م"); return }
@@ -140,7 +140,7 @@ func HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
         var disc float64; var couponCode string
         if b.CouponCode != "" {
                 var typ string; var val, min float64; var maxD sql.NullFloat64; var ul sql.NullInt64; var uc int; var cid string
-                if shared.DB.QueryRow("SELECT id, type, value, min_order, max_discount, usage_limit, used_count FROM coupons WHERE code = ? AND is_active = 1", b.CouponCode).Scan(&cid, &typ, &val, &min, &maxD, &ul, &uc) == nil {
+                if shared.DB.QueryRow("SELECT id, type, value, min_order, max_discount, usage_limit, used_count FROM coupons WHERE code = ? AND is_active = TRUE", b.CouponCode).Scan(&cid, &typ, &val, &min, &maxD, &ul, &uc) == nil {
                         if sub >= min {
                                 if typ == "percentage" { disc = sub * val / 100; if maxD.Valid && disc > maxD.Float64 { disc = maxD.Float64 } } else { disc = val; if disc > sub { disc = sub } }
                                 couponCode = b.CouponCode
@@ -243,7 +243,7 @@ func HandleDeleteAddress(w http.ResponseWriter, r *http.Request) {
 
 func HandleGetCards(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        rows, _ := shared.DB.Query("SELECT id, brand, last4, exp_month, exp_year, cardholder_name, is_default FROM saved_cards WHERE user_id = ? AND is_active = 1 ORDER BY is_default DESC, created_at DESC", c.UserID)
+        rows, _ := shared.DB.Query("SELECT id, brand, last4, exp_month, exp_year, cardholder_name, is_default FROM saved_cards WHERE user_id = ? AND is_active = TRUE ORDER BY is_default DESC, created_at DESC", c.UserID)
         var cards []map[string]interface{}
         for rows.Next() {
                 var id, brand, last4 string; var em, ey int; var cn sql.NullString; var def bool
@@ -259,7 +259,7 @@ func HandleSaveCard(w http.ResponseWriter, r *http.Request) {
         var b struct{ PaymobToken, Brand, Last4, CardholderName string; ExpMonth, ExpYear int; IsDefault bool }
         json.NewDecoder(r.Body).Decode(&b)
         if b.PaymobToken == "" || b.Last4 == "" { shared.WriteErr(w, 400, "بيانات البطاقة ناقصة"); return }
-        if b.IsDefault { shared.DB.Exec("UPDATE saved_cards SET is_default = 0 WHERE user_id = ?", c.UserID) }
+        if b.IsDefault { shared.DB.Exec("UPDATE saved_cards SET is_default = FALSE WHERE user_id = ?", c.UserID) }
         id := uuid.New().String()
         shared.DB.Exec("INSERT INTO saved_cards (id, user_id, paymob_token, brand, last4, exp_month, exp_year, cardholder_name, is_default, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", id, c.UserID, b.PaymobToken, b.Brand, b.Last4, b.ExpMonth, b.ExpYear, b.CardholderName, b.IsDefault)
         shared.WriteJSON(w, 201, map[string]interface{}{"id": id})
@@ -267,20 +267,20 @@ func HandleSaveCard(w http.ResponseWriter, r *http.Request) {
 
 func HandleDeleteCard(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        shared.DB.Exec("UPDATE saved_cards SET is_active = 0 WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
+        shared.DB.Exec("UPDATE saved_cards SET is_active = FALSE WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
 func HandleSetDefaultCard(w http.ResponseWriter, r *http.Request) {
         c := shared.GetUser(r); if c == nil { shared.WriteErr(w, 401, "غير مصرح"); return }
-        shared.DB.Exec("UPDATE saved_cards SET is_default = 0 WHERE user_id = ?", c.UserID)
-        shared.DB.Exec("UPDATE saved_cards SET is_default = 1 WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
+        shared.DB.Exec("UPDATE saved_cards SET is_default = FALSE WHERE user_id = ?", c.UserID)
+        shared.DB.Exec("UPDATE saved_cards SET is_default = TRUE WHERE id = ? AND user_id = ?", r.PathValue("id"), c.UserID)
         shared.WriteJSON(w, 200, map[string]interface{}{"success": true})
 }
 
 // Admin handlers
 func HandleGetRestaurants(w http.ResponseWriter, r *http.Request) {
-        rows, err := shared.DB.Query("SELECT id, name, name_ar, description_ar, image_url, cover_url, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_pro, cuisines FROM restaurants WHERE is_active = 1 ORDER BY is_pro DESC, rating DESC")
+        rows, err := shared.DB.Query("SELECT id, name, name_ar, description_ar, image_url, cover_url, rating, rating_count, delivery_time_min, delivery_time_max, delivery_fee, min_order, is_pro, cuisines FROM restaurants WHERE is_active = TRUE ORDER BY is_pro DESC, rating DESC")
         if err != nil { shared.WriteErr(w, 500, "فشل تحميل المطاعم"); return }
         defer rows.Close()
         var restaurants []map[string]interface{}
@@ -320,7 +320,7 @@ func HandleGetRestaurant(w http.ResponseWriter, r *http.Request) {
         if err != nil { shared.WriteErr(w, 404, "المطعم غير موجود"); return }
 
         // Get menu items
-        itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id FROM menu_items WHERE restaurant_id = ? AND is_available = 1 ORDER BY is_popular DESC, price ASC", id)
+        itemRows, _ := shared.DB.Query("SELECT id, name, name_ar, description, description_ar, price, image, image_url, is_popular, is_available, rating, rating_count, prep_time, calories, category_id FROM menu_items WHERE restaurant_id = ? AND is_available = TRUE ORDER BY is_popular DESC, price ASC", id)
         type MenuItem struct {
                 ID string `json:"id"`
                 Name string `json:"name"`

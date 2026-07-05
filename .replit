@@ -28,6 +28,8 @@ externalPort = 80
 
 [env]
 PORT = "8080"
-DB_DRIVER = "sqlite"
+DB_DRIVER = "postgres"
 JWT_SECRET = "avex-production-secret-change-me"
 GOFLAGS = "-buildvcs=false"
+# DATABASE_URL should be set as a Replit Secret
+# Example: postgres://user:pass@host:5432/dbname?sslmode=require

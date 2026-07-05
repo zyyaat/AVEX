@@ -8,7 +8,7 @@ func ComputeDriverFee(tierID, zoneID string, distanceM float64) float64 {
 		return 0
 	}
 	var base, perKm, mn, mx, freeAbove float64
-	err := shared.DB.QueryRow("SELECT base_fee, per_km_fee, min_fee, max_fee, free_above FROM tier_zone_prices WHERE tier_id = ? AND zone_id = ? AND is_active = 1", tierID, zoneID).Scan(&base, &perKm, &mn, &mx, &freeAbove)
+	err := shared.DB.QueryRow("SELECT base_fee, per_km_fee, min_fee, max_fee, free_above FROM tier_zone_prices WHERE tier_id = ? AND zone_id = ? AND is_active = TRUE", tierID, zoneID).Scan(&base, &perKm, &mn, &mx, &freeAbove)
 	if err != nil {
 		return 0
 	}

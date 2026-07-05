@@ -27,7 +27,7 @@ func GetSettingInt(key string, def int) int {
 
 // FindZoneByLatLng returns the zone ID containing the point, or "" if none.
 func FindZoneByLatLng(lat, lng float64) string {
-	rows, err := DB.Query("SELECT id, center_lat, center_lng, radius_m FROM delivery_zones WHERE is_active = 1")
+	rows, err := DB.Query("SELECT id, center_lat, center_lng, radius_m FROM delivery_zones WHERE is_active = TRUE")
 	if err != nil {
 		return ""
 	}

@@ -82,7 +82,7 @@ func HandleMerchantGetOrders(w http.ResponseWriter, r *http.Request) {
         q := `SELECT o.id, o.order_number, o.customer_name, o.phone, o.location_address, o.location_lat, o.location_lng, o.location_url,
                      o.subtotal, o.delivery_fee, o.discount, o.total, o.payment_method, o.status, o.created_at, o.updated_at,
                      o.driver_id, o.scheduled_for,
-                     (SELECT GROUP_CONCAT(name || ' × ' || quantity, '، ') FROM order_items WHERE order_id = o.id) AS items_summary,
+                     (SELECT ` + shared.GroupConcatExpr("name || ' × ' || quantity", "'، '") + ` FROM order_items WHERE order_id = o.id) AS items_summary,
                      (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS items_count
               FROM orders o WHERE o.restaurant_id = ?`
         args := []interface{}{c.RestaurantID}
@@ -288,12 +288,12 @@ func HandleMerchantStats(w http.ResponseWriter, r *http.Request) {
         if c == nil || !c.IsMerchant { shared.WriteErr(w, 401, "غير مصرح"); return }
         var todayCount, activeCount, completedCount sql.NullInt64
         var todayRevenue sql.NullFloat64
-        shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND date(created_at) = date('now')", c.RestaurantID).Scan(&todayCount)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURRENT_DATE", c.RestaurantID).Scan(&todayCount)
         shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND status IN ('accepted','preparing','ready','assigned','picked_up','on_the_way','delivering')", c.RestaurantID).Scan(&activeCount)
         shared.DB.QueryRow("SELECT COUNT(*) FROM orders WHERE restaurant_id = ? AND status = 'delivered'", c.RestaurantID).Scan(&completedCount)
-        shared.DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE restaurant_id = ? AND status = 'delivered' AND date(created_at) = date('now')", c.RestaurantID).Scan(&todayRevenue)
+        shared.DB.QueryRow("SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE restaurant_id = ? AND status = 'delivered' AND DATE(created_at) = CURRENT_DATE", c.RestaurantID).Scan(&todayRevenue)
         // last 7 days revenue
-        rows, _ := shared.DB.Query("SELECT date(created_at) AS d, COALESCE(SUM(subtotal), 0) AS r, COUNT(*) AS c FROM orders WHERE restaurant_id = ? AND created_at >= datetime('now', '-7 days') AND status = 'delivered' GROUP BY date(created_at) ORDER BY d ASC", c.RestaurantID)
+        rows, _ := shared.DB.Query("SELECT DATE(created_at) AS d, COALESCE(SUM(subtotal), 0) AS r, COUNT(*) AS c FROM orders WHERE restaurant_id = ? AND created_at >= " + shared.NowMinusDays(7) + " AND status = 'delivered' GROUP BY DATE(created_at) ORDER BY d ASC", c.RestaurantID)
         var daily []map[string]interface{}
         for rows.Next() {
                 var d sql.NullString; var r sql.NullFloat64; var cnt sql.NullInt64
@@ -314,7 +314,7 @@ func HandleMerchantGetScheduledOrders(w http.ResponseWriter, r *http.Request) {
         if c == nil || !c.IsMerchant { shared.WriteErr(w, 401, "غير مصرح"); return }
         rows, _ := shared.DB.Query(`SELECT s.id, s.order_id, s.scheduled_for, s.status, s.created_at,
                                     o.order_number, o.customer_name, o.phone, o.total, o.status AS order_status,
-                                    (SELECT GROUP_CONCAT(name || ' × ' || quantity, '، ') FROM order_items WHERE order_id = o.id) AS items_summary
+                                    (SELECT ` + shared.GroupConcatExpr("name || ' × ' || quantity", "'، '") + ` FROM order_items WHERE order_id = o.id) AS items_summary
                              FROM scheduled_orders s JOIN orders o ON o.id = s.order_id
                              WHERE o.restaurant_id = ? AND s.status = 'scheduled'
                              ORDER BY s.scheduled_for ASC`, c.RestaurantID)

@@ -1,17 +1,17 @@
 package driver
 
 import (
-	"database/sql"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
-	"time"
+        "database/sql"
+        "encoding/json"
+        "fmt"
+        "net/http"
+        "strconv"
+        "time"
 
-	"avex-backend/internal/dispatch"
-	"avex-backend/internal/shared"
+        "avex-backend/internal/dispatch"
+        "avex-backend/internal/shared"
 
-	"github.com/google/uuid"
+        "github.com/google/uuid"
 )
 
 var _ = sql.NullString{}
@@ -110,7 +110,7 @@ func HandleDriverMe(w http.ResponseWriter, r *http.Request) {
         if tierSort.Valid {
                 rows, _ := shared.DB.Query(`SELECT t.id, t.name_ar, t.sort_order, th.min_acceptance_rate, th.min_completion_rate, th.min_customer_rating, th.min_on_time_rate, th.min_shift_adherence, th.min_lifetime_orders
                                      FROM driver_tiers t LEFT JOIN tier_thresholds th ON th.tier_id = t.id
-                                     WHERE t.is_active = 1 AND t.sort_order > ? ORDER BY t.sort_order ASC LIMIT 1`, tierSort.Int64)
+                                     WHERE t.is_active = TRUE AND t.sort_order > ? ORDER BY t.sort_order ASC LIMIT 1`, tierSort.Int64)
                 if rows.Next() {
                         var nid, nname sql.NullString; var nsort sql.NullInt64
                         var nacc, ncomp, nrat, nonT, nshift sql.NullFloat64; var nlife sql.NullInt64
@@ -203,7 +203,7 @@ func HandleDriverGetOffers(w http.ResponseWriter, r *http.Request) {
                                     ord.payment_method, ord.status,
                                     r.name_ar AS restaurant_name, r.lat AS r_lat, r.lng AS r_lng, r.zone_id,
                                     z.name_ar AS zone_name,
-                                    (SELECT GROUP_CONCAT(name || ' × ' || quantity, '، ') FROM order_items WHERE order_id = ord.id) AS items_summary
+                                    (SELECT ` + shared.GroupConcatExpr("name || ' × ' || quantity", "'، '") + ` FROM order_items WHERE order_id = ord.id) AS items_summary
                              FROM dispatch_offers o
                              JOIN orders ord ON ord.id = o.order_id
                              LEFT JOIN restaurants r ON r.id = ord.restaurant_id
@@ -407,11 +407,11 @@ func HandleDriverEarnings(w http.ResponseWriter, r *http.Request) {
         var periodClause string
         switch period {
         case "today":
-                periodClause = "AND date(o.created_at) = date('now')"
+                periodClause = "AND DATE(o.created_at) = CURRENT_DATE"
         case "week":
-                periodClause = "AND o.created_at >= datetime('now', '-7 days')"
+                periodClause = "AND o.created_at >= " + shared.NowMinusDays(7)
         case "month":
-                periodClause = "AND o.created_at >= datetime('now', '-30 days')"
+                periodClause = "AND o.created_at >= " + shared.NowMinusDays(30)
         default:
                 periodClause = ""
         }

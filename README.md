@@ -23,7 +23,7 @@
 |---|---|
 | **Backend** | Go 1.23 (بنية modular: cmd/ + internal/) |
 | **Frontend** | Next.js 16, React 19, TypeScript |
-| **Database** | SQLite (تطوير) / PostgreSQL (إنتاج) |
+| **Database** | SQLite (تطوير) / PostgreSQL (إنتاج) — دعم كامل للهجتين |
 | **Styling** | Tailwind CSS 4, Fluent design (أبيض/أسود/رمادي) |
 | **State** | Zustand |
 | **Animations** | Framer Motion |
@@ -101,9 +101,18 @@ bash scripts/start-all.sh
 | المتغير | الافتراضي | الوصف |
 |---|---|---|
 | `PORT` | 8080 | منفذ Go backend |
-| `DB_PATH` | ./avex.db | مسار SQLite |
+| `DB_DRIVER` | sqlite | `sqlite` للتطوير، `postgres` للإنتاج |
+| `DB_PATH` | ./avex.db | مسار SQLite (عند DB_DRIVER=sqlite) |
+| `DATABASE_URL` | - | رابط PostgreSQL (عند DB_DRIVER=postgres) |
 | `JWT_SECRET` | avex-secret-key | مفتاح JWT |
 | `BACKEND_URL` | http://localhost:8080 | رابط الـ backend (للتطبيقات) |
+
+### PostgreSQL على الإنتاج
+```bash
+DB_DRIVER=postgres
+DATABASE_URL="postgres://user:pass@host:5432/avex?sslmode=require"
+```
+الباك إند يدعم SQLite و PostgreSQL معاً — يختار اللهجة المناسبة تلقائياً حسب `DB_DRIVER`.
 
 ## 🔌 API Endpoints (95+ مسار)
 

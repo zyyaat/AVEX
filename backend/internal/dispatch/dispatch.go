@@ -2,7 +2,6 @@ package dispatch
 
 import (
         "database/sql"
-        "fmt"
         "time"
 
         "avex-backend/internal/shared"
@@ -38,12 +37,12 @@ func DispatchOrder(orderID string) {
         rows, err := shared.DB.Query(`SELECT d.id, d.lat, d.lng, d.tier_id, dt.sort_order
                                       FROM drivers d
                                       LEFT JOIN driver_tiers dt ON dt.id = d.tier_id
-                                      WHERE d.is_online = 1 AND d.is_active = 1 AND d.is_verified = 1
+                                      WHERE d.is_online = TRUE AND d.is_active = TRUE AND d.is_verified = TRUE
                                         AND d.tier_id IS NOT NULL
-                                        AND d.location_updated_at > datetime('now', ?)
+                                        AND d.location_updated_at > ` + shared.NowMinusSeconds(staleSec) + `
                                         AND d.id NOT IN (SELECT driver_id FROM dispatch_offers WHERE order_id = ? AND status = 'accepted')
                                         AND d.id NOT IN (SELECT driver_id FROM orders WHERE id != ? AND status IN ('assigned','picked_up','on_the_way','delivering'))`,
-                fmt.Sprintf("-%d seconds", staleSec), orderID, orderID)
+                orderID, orderID)
         if err != nil {
                 return
         }

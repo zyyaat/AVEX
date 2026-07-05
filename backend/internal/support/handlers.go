@@ -295,7 +295,7 @@ func HandleAgentStats(w http.ResponseWriter, r *http.Request) {
         var openCount, mineCount, todayCount, urgentCount sql.NullInt64
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'").Scan(&openCount)
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND assigned_to = ?", c.AgentID).Scan(&mineCount)
-        shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE date(created_at) = date('now')").Scan(&todayCount)
+        shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE DATE(created_at) = CURRENT_DATE").Scan(&todayCount)
         shared.DB.QueryRow("SELECT COUNT(*) FROM support_tickets WHERE status = 'open' AND priority = 'urgent'").Scan(&urgentCount)
         // by type
         rows, _ := shared.DB.Query("SELECT type, COUNT(*) AS c FROM support_tickets WHERE status = 'open' GROUP BY type")

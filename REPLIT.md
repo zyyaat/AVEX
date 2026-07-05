@@ -81,8 +81,30 @@ const API_BASE = process.env.BACKEND_URL || 'http://localhost:8080'
 
 ## 🗄️ قاعدة البيانات
 
-- **التطوير**: SQLite في `backend/avex.db` (يُنشأ تلقائياً + seed)
-- **الإنتاج**: يُنصح بـ PostgreSQL — غيّر `DB_PATH` وعدّل `internal/shared/db.go`
+الباك إند يدعم **SQLite** و **PostgreSQL** — يتم الاختيار تلقائياً عبر `DB_DRIVER`.
+
+### SQLite (تطوير محلي)
+```bash
+DB_DRIVER=sqlite          # أو اتركه فارغاً
+DB_PATH=./avex.db         # افتراضي
+```
+القاعدة تُنشأ تلقائياً + seed عند أول تشغيل.
+
+### PostgreSQL (إنتاج على Replit)
+1. على Replit Backend، أضف Secrets:
+   - `DB_DRIVER` = `postgres`
+   - `DATABASE_URL` = رابط PostgreSQL (مثال: `postgres://user:pass@host:5432/avex?sslmode=require`)
+2. يمكنك استخدام:
+   - **Replit Postgres** (مدمج في Replit — اضغط "Database" في الـ sidebar)
+   - **Neon** (postgres مجاني: neon.tech)
+   - **Supabase** (postgres مجاني: supabase.com)
+   - أي PostgreSQL provider آخر
+
+الباك إند:
+- يقرأ `DB_DRIVER` و `DATABASE_URL`
+- يستخدم `pgx` driver للـ PostgreSQL
+- يبدّل اللهجة تلقائياً (date functions, GROUP_CONCAT→STRING_AGG, boolean TRUE/FALSE)
+- الـ schema + seed يشتغل على الاتنين بدون تعديل
 
 ---
 

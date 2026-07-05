@@ -41,7 +41,7 @@ func EvaluateDriverTier(driverID string) string {
 		shiftAdherence = float64(shiftAttended) / float64(shiftScheduled) * 100
 	}
 
-	rows, err := shared.DB.Query("SELECT id, sort_order FROM driver_tiers WHERE is_active = 1 ORDER BY sort_order DESC")
+	rows, err := shared.DB.Query("SELECT id, sort_order FROM driver_tiers WHERE is_active = TRUE ORDER BY sort_order DESC")
 	if err != nil {
 		return currentTier.String
 	}
