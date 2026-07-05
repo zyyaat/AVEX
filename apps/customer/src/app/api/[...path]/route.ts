@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exec } from 'child_process'
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = process.env.BACKEND_URL || 'http://localhost:8080'
 let goStarted = false
 
 // Ensure Go backend is running - auto-start if needed
 async function ensureGoRunning() {
+  if (process.env.BACKEND_URL) return true; // production — backend on separate Replit
   // Try a quick health check first
   try {
     const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(1000) })

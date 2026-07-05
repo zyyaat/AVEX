@@ -1,154 +1,119 @@
-# 🚀 AVEX - تطبيق توصيل عالمي
+# 🚀 AVEX — منصة توصيل طعام عالمية
 
-تطبيق توصيل طعام عالمي بُني بـ **Go backend** + **Next.js frontend**.
+منصة توصيل كاملة مبنية بـ **Go backend** (بنية modular) + **5 تطبيقات Next.js**.
 
 ## ✨ المميزات
 
-- 🔐 **نظام مصادقة كامل** (تسجيل/دخول/JWT)
-- 🍔 **قائمة طعام ديناميكية** مع صور حقيقية
-- 🛒 **سلة تسوق ذكية** (منع الحذف بالخطأ، شريط تقدم للتوصيل المجاني)
-- 📱 **رقم هاتف مصري** (010/011/012/015) مع معالجة +20
-- 🎁 **نظام كوبونات** كامل (AVEX30, FREEDEL, FAMILY99, LUNCH15)
-- 👑 **AVEX Club** (اشتراك مميز)
-- 💳 **حفظ البطاقات** (tokenization جاهز لـ Paymob)
-- 📍 **عناوين محفوظة** + تحديد الموقع
-- 📦 **تتبع الطلبات** برقم الطلب
-- 📊 **لوحة تحكم مسؤول** كاملة (Kanban, CRUD, إعدادات)
-- 🎨 **تصميم عالمي** (بنفسجي + أصفر، RTL، responsive)
+### 5 تطبيقات متكاملة
+- 🛒 **Customer** — تطبيق العميل (تصفح المطاعم، طلبات، تتبع)
+- 🛵 **Driver** — تطبيق المندوب (عروض، تسليم، أرباح، مستويات)
+- 🏪 **Merchant** — تطبيق التاجر (إدارة المنيو، الطلبات، ساعات العمل)
+- 🎧 **Support** — تطبيق الدعم (تذاكر، محادثات، بحث شامل)
+- ⚙️ **Admin** — لوحة الإدارة (مناطق، مستويات، تجار، مندوبين)
+
+### نظام المستويات والمناطق
+- 4 مستويات للمندوبين (مبتدئ/برونزي/فضي/ذهبي) بشروط قابلة للتعديل
+- مصفوفة أسعار (مستوى × منطقة) تُدار من لوحة الإدارة
+- خوارزمية توزيع بترتيب: مسافة + مستوى + استجابة + شيفت
+- Geofence (70م للاستلام، 50م للتسليم)
 
 ## 🛠️ التقنيات
 
 | الطبقة | التقنية |
-|--------|---------|
-| **Backend** | Go 1.23+ (net/http, JWT, bcrypt) |
+|---|---|
+| **Backend** | Go 1.23 (بنية modular: cmd/ + internal/) |
 | **Frontend** | Next.js 16, React 19, TypeScript |
-| **Database** | SQLite (افتراضي) / PostgreSQL (إنتاج) |
-| **Styling** | Tailwind CSS 4, shadcn/ui |
-| **State** | Zustand (cart + auth) |
+| **Database** | SQLite (تطوير) / PostgreSQL (إنتاج) |
+| **Styling** | Tailwind CSS 4, Fluent design (أبيض/أسود/رمادي) |
+| **State** | Zustand |
 | **Animations** | Framer Motion |
-
-## 📦 النشر على Replit
-
-### 1. استيراد من GitHub
-```bash
-git clone <your-repo-url>
-cd avex
-```
-
-### 2. تثبيت Go
-```bash
-# Replit يدعم Go تلقائياً عبر replit.nix
-# أو ثبّته يدوياً:
-wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
-```
-
-### 3. تثبيت Node dependencies
-```bash
-npm install
-# أو
-bun install
-```
-
-### 4. بناء Go backend
-```bash
-cd backend
-go mod tidy
-go build -o avex-api .
-cd ..
-```
-
-### 5. إعداد قاعدة البيانات
-```bash
-# SQLite (افتراضي)
-# لا حاجة لأي إعداد
-
-# PostgreSQL (إنتاج)
-export DB_DRIVER=postgres
-export DATABASE_URL="host=localhost port=5432 user=postgres dbname=avex sslmode=disable"
-```
-
-### 6. تشغيل
-```bash
-# تشغيل Go backend (منفذ 8080)
-cd backend && ./avex-api &
-
-# تشغيل Next.js (منفذ 3000)
-cd .. && npm run dev
-```
-
-أو استخدم سكريبت البدء:
-```bash
-bash scripts/start.sh
-```
-
-## 🔑 حساب المسؤول الافتراضي
-```
-الهاتف: 01000000000
-كلمة المرور: admin123
-```
-
-## 🌍 متغيرات البيئة
-
-| المتغير | الافتراضي | الوصف |
-|---------|-----------|-------|
-| `PORT` | 8080 | منفذ Go backend |
-| `DB_DRIVER` | sqlite | sqlite / postgres |
-| `DATABASE_URL` | - | رابط PostgreSQL |
-| `JWT_SECRET` | avex-secret-key | مفتاح JWT |
-| `DB_PATH` | ./avex.db | مسار SQLite |
 
 ## 📁 هيكل المشروع
 
 ```
 avex/
-├── backend/              # Go backend
-│   ├── main.go           # كل الـ API في ملف واحد
-│   ├── go.mod            # Go module
-│   └── avex-api          # الباينري (يُبنى)
-├── src/                  # Next.js frontend
-│   ├── app/
-│   │   ├── page.tsx      # الصفحة الرئيسية
-│   │   ├── layout.tsx    # Layout (RTL, Cairo font)
-│   │   ├── globals.css   # ألوان AVEX (بنفسجي + أصفر)
-│   │   └── api/[...path] # Proxy route → Go backend
-│   ├── components/
-│   │   ├── franks/       # مكونات الواجهة
-│   │   └── admin/        # لوحة التحكم
-│   ├── store/            # Zustand (cart + auth)
-│   └── lib/              # API client
-├── prisma/               # Prisma schema (مرجعي)
-├── scripts/              # سكريبتات
-├── .replit               # إعدادات Replit
-├── replit.nix            # حزم Nix لـ Replit
-└── package.json
+├── backend/
+│   ├── cmd/server/main.go              ← نقطة الدخول
+│   └── internal/
+│       ├── shared/                     ← DB, JWT (4 types), middlewares, geo
+│       ├── dispatch/                   ← خوارزميات التوزيع والتسعير
+│       ├── customer/                   ← 13 مسار
+│       ├── driver/                     ← 21 مسار
+│       ├── merchant/                   ← 14 مسار
+│       ├── support/                    ← 12 مسار
+│       └── admin/                      ← 35+ مسار
+├── apps/
+│   ├── customer/   (Next.js, port 3000)
+│   ├── driver/     (Next.js, port 3001)
+│   ├── admin/      (Next.js, port 3002)
+│   ├── support/    (Next.js, port 3003)
+│   └── merchant/   (Next.js, port 3004)
+├── scripts/
+│   ├── replit-backend.sh               ← يشغّل الـ backend
+│   ├── replit-app.sh                   ← يشغّل أي تطبيق Next.js
+│   └── start-all.sh                    ← يشغّل الكل محلياً
+├── .replit                             ← إعدادات Replit
+├── replit.nix                          ← حزم Nix
+└── REPLIT.md                           ← دليل النشر الكامل
 ```
 
-## 🔌 API Endpoints
+## 🚀 التشغيل المحلي
 
-### عامة
-- `GET /api/health` - فحص الصحة
-- `GET /api/menu` - قائمة الطعام
-- `GET /api/settings` - الإعدادات
-- `POST /api/auth/register` - تسجيل
-- `POST /api/auth/login` - دخول
-- `POST /api/orders` - إنشاء طلب
-- `GET /api/orders/track?number=X` - تتبع طلب
-- `POST /api/coupons/validate` - التحقق من كوبون
+```bash
+# يشغّل الـ backend + كل التطبيقات الـ 5
+bash scripts/start-all.sh
+```
 
-### مصادقة مطلوبة
-- `GET /api/auth/me` - بيانات المستخدم
-- `GET /api/orders` - طلباتي
-- `GET/POST/DELETE /api/addresses` - العناوين
-- `GET/POST/DELETE /api/cards` - البطاقات
+ثم افتح:
+- Customer: http://localhost:3000
+- Driver: http://localhost:3001
+- Admin: http://localhost:3002
+- Support: http://localhost:3003
+- Merchant: http://localhost:3004
+- Backend API: http://localhost:8080
 
-### مسؤول فقط
-- `GET/POST /api/admin/categories` - الفئات
-- `GET/POST/PATCH/DELETE /api/admin/menu-items` - الأصناف
-- `GET/POST/DELETE /api/admin/coupons` - الكوبونات
-- `PUT /api/admin/settings` - الإعدادات
-- `PATCH /api/orders/{id}` - تحديث حالة الطلب
+## 🔑 الحسابات التجريبية
+
+| التطبيق | الهاتف | كلمة المرور |
+|---|---|---|
+| Admin | 01000000000 | admin123 |
+| Driver | 01100000001 / 002 | 123456 |
+| Merchant | 01200000001 إلى 005 | 123456 |
+| Support | 01500000001 / 002 | 123456 |
+| Customer | أي رقم مصري | (سجّل بنفسك) |
+
+## ☁️ النشر على Replit
+
+**كل تطبيق على Replit منفصل** — 6 Replits إجمالاً.
+
+اطلع على **[REPLIT.md](./REPLIT.md)** للدليل الكامل خطوة بخطوة.
+
+### باختصار:
+1. استورد الـ repo على Replit
+2. عدّل سطر `run` في `.replit` حسب التطبيق
+3. اضغط **Run**
+
+لربط التطبيقات بالإنتاج، أضف Secret في كل تطبيق (عدا الـ Backend):
+- `BACKEND_URL` = رابط الـ Backend Replit
+
+## 🌍 متغيرات البيئة
+
+| المتغير | الافتراضي | الوصف |
+|---|---|---|
+| `PORT` | 8080 | منفذ Go backend |
+| `DB_PATH` | ./avex.db | مسار SQLite |
+| `JWT_SECRET` | avex-secret-key | مفتاح JWT |
+| `BACKEND_URL` | http://localhost:8080 | رابط الـ backend (للتطبيقات) |
+
+## 🔌 API Endpoints (95+ مسار)
+
+- **Customer** (13): auth, menu, orders, addresses, cards, coupons
+- **Driver** (21): auth, offers, delivery, earnings, support tickets
+- **Merchant** (14): auth, orders KDS, menu CRUD, store hours, stats
+- **Support** (12): agent auth, tickets, search, order/driver lookup
+- **Admin** (35+): dashboard, zones, tiers, prices, drivers, applications, restaurants
+
+اطلع على `backend/internal/*/routes.go` للقائمة الكاملة.
 
 ## 📄 الرخصة
 © 2026 AVEX. جميع الحقوق محفوظة.

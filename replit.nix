@@ -4,6 +4,7 @@
     pkgs.nodejs_20
     pkgs.bun
     pkgs.sqlite
-    pkgs.postgresql
+    pkgs.git
+    pkgs.cacert
   ];
 }

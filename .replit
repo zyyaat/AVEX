@@ -1,24 +1,33 @@
-run = "bash scripts/start.sh"
-hidden = [".config", "package.json", "tsconfig.json", "bun.lock"]
-entrypoint = "src/app/page.tsx"
+# AVEX — Replit configuration (defaults to backend)
+# To run a different app, change the `run` line to one of:
+#   run = "bash scripts/replit-backend.sh"        ← Backend API (port 8080) [default]
+#   run = "bash scripts/replit-app.sh customer 3000"   ← Customer app
+#   run = "bash scripts/replit-app.sh driver 3001"     ← Driver app
+#   run = "bash scripts/replit-app.sh admin 3002"      ← Admin panel
+#   run = "bash scripts/replit-app.sh support 3003"    ← Support agent app
+#   run = "bash scripts/replit-app.sh merchant 3004"   ← Merchant app
+#
+# Each app should be deployed on a SEPARATE Replit (one Replit per app).
+# See REPLIT.md for full deployment guide.
+
+run = "bash scripts/replit-backend.sh"
+hidden = [".config", "bun.lock"]
+entrypoint = "backend/cmd/server/main.go"
 modules = ["nodejs-20", "go-1.23"]
 
 [nix]
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "bash scripts/start.sh"]
+run = ["sh", "-c", "bash scripts/replit-backend.sh"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
-localPort = 3000
-externalPort = 80
-
-[[ports]]
 localPort = 8080
-externalPort = 8080
+externalPort = 80
 
 [env]
 PORT = "8080"
 DB_DRIVER = "sqlite"
 JWT_SECRET = "avex-production-secret-change-me"
+GOFLAGS = "-buildvcs=false"

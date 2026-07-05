@@ -70,3 +70,35 @@ backend/vendor/
 public/uploads/
 !public/uploads/.gitkeep
 tool-results/
+
+# ===== AVEX cleanup — these don't belong in the AVEX repo =====
+# AI platform skills (kept locally but not part of AVEX)
+skills/
+
+# Old platform scripts
+.zscripts/
+
+# Old configs
+Caddyfile
+eslint.config.mjs
+examples/
+mini-services/
+
+# Old DB / ORM (we use raw SQL in Go)
+prisma/
+db/
+
+# Old download artifacts
+download/
+
+# Old scripts (replaced by scripts/start-all.sh)
+scripts/seed.ts
+scripts/start.sh
+scripts/start-customer.sh
+scripts/start-driver.sh
+
+# Env
+.env
+
+# Tool results
+tool-results/
